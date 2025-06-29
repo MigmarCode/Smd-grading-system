@@ -1,6 +1,9 @@
-import Image from "next/image";
+"use client";
+import { useRouter } from "next/navigation";
 
 export default function Home() {
+  const router = useRouter();
+
   return (
     <div className="flex flex-col min-h-screen" style={{ background: '#fffef2' }}>
       <main className="flex-1 flex items-center justify-center w-full">
@@ -19,27 +22,32 @@ export default function Home() {
           </div>
           {/* Right: Content */}
           <div className="flex flex-col items-center justify-center px-6 py-12 md:py-0 text-center md:text-center relative z-10">
+            <div className="mb-6">
+              <img 
+                src="/SMD_Logo.png" 
+                alt="SMD Logo" 
+                className="w-24 h-24 md:w-32 md:h-32 object-contain"
+              />
+            </div>
             <h1 className="text-4xl sm:text-5xl font-extrabold mb-4 drop-shadow-lg tracking-tight w-full flex justify-center" style={{ color: '#5d0b0d' }}>
-              Welcome to SMD Portal
+              Welcome to SMD
             </h1>
-            <p className="text-lg sm:text-xl text-neutral-600 dark:text-neutral-200 max-w-xl mb-10 drop-shadow">
-              The platform is for managing school grades, teachers, and administration. Please select your role to get started.
+            <p className="text-base text-neutral-600 dark:text-neutral-200 max-w-xl mb-4 drop-shadow px-2.5">
+              Shree Mangal Dvip (SMD) School for Himalayan Children in Kathmandu provides free education, housing and full care for over 500 children from the most vulnerable and remote Himalayan mountain villages of northern Nepal.
             </p>
             <div className="flex flex-col gap-4 mt-8 w-full max-w-xs mx-auto md:mx-0">
-              <a
-                href="/admin/dashboard"
-                className="w-full flex items-center justify-center gap-2 rounded-lg bg-gradient-to-r from-blue-600 to-blue-400 text-white text-lg font-semibold py-3 px-6 text-center shadow-lg hover:from-blue-700 hover:to-blue-500 active:scale-95 transition-all duration-150 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:ring-offset-2"
+              <button
+                onClick={() => router.push("/admin/dashboard")}
+                className="w-full flex items-center justify-center gap-2 rounded-lg bg-gradient-to-r from-yellow-500 to-yellow-400 text-white text-lg font-semibold py-3 px-6 text-center shadow-lg hover:from-yellow-600 hover:to-yellow-500 active:scale-95 transition-all duration-150 focus:outline-none focus:ring-2 focus:ring-yellow-400 focus:ring-offset-2"
               >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" aria-hidden="true"><path strokeLinecap="round" strokeLinejoin="round" d="M16 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2m16-10V7a4 4 0 00-4-4H8a4 4 0 00-4 4v4m16 0a4 4 0 01-4 4H8a4 4 0 01-4-4m16 0V7m0 4H4" /></svg>
-                Admin Sign Up
-              </a>
-              <a
-                href="#"
+                Enter as Admin
+              </button>
+              <button
+                onClick={() => router.push("/teacher/dashboard")}
                 className="w-full flex items-center justify-center gap-2 rounded-lg border-2 border-blue-400 bg-white text-blue-700 text-lg font-semibold py-3 px-6 text-center shadow hover:bg-blue-50 active:scale-95 transition-all duration-150 focus:outline-none focus:ring-2 focus:ring-blue-200 focus:ring-offset-2"
               >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" aria-hidden="true"><path strokeLinecap="round" strokeLinejoin="round" d="M12 14l9-5-9-5-9 5 9 5zm0 0v6m0 0H6m6 0h6" /></svg>
-                Teacher Sign Up
-              </a>
+                Enter as Teacher
+              </button>
             </div>
           </div>
         </div>
