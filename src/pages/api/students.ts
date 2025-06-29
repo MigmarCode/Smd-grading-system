@@ -6,6 +6,20 @@ import { v4 as uuidv4 } from 'uuid';
 const dbPath = path.resolve(process.cwd(), 'data.db');
 const db = new Database(dbPath);
 
+// Ensure the students table exists with the correct schema
+db.prepare(`
+  CREATE TABLE IF NOT EXISTS students (
+    id TEXT PRIMARY KEY,
+    first_name TEXT NOT NULL,
+    last_name TEXT NOT NULL,
+    class_id TEXT,
+    student_id TEXT NOT NULL UNIQUE,
+    roll_no TEXT,
+    created_at TEXT DEFAULT (datetime('now')),
+    FOREIGN KEY (class_id) REFERENCES classes(id)
+  )
+`).run();
+
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   try {
     switch (req.method) {

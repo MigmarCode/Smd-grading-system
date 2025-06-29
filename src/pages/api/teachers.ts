@@ -5,6 +5,19 @@ import path from 'path';
 
 const db = new Database(path.resolve(process.cwd(), 'data.db'));
 
+// Ensure the teachers table exists with the correct schema
+db.prepare(`
+  CREATE TABLE IF NOT EXISTS teachers (
+    id TEXT PRIMARY KEY,
+    first_name TEXT NOT NULL,
+    last_name TEXT NOT NULL,
+    phone TEXT NOT NULL,
+    class_id TEXT,
+    created_at TEXT DEFAULT (datetime('now')),
+    FOREIGN KEY (class_id) REFERENCES classes(id)
+  )
+`).run();
+
 export default function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method === 'GET') {
     try {

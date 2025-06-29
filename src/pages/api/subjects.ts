@@ -5,6 +5,16 @@ import path from 'path';
 
 const db = new Database(path.resolve(process.cwd(), 'data.db'));
 
+// Ensure the subjects table exists with the correct schema
+db.prepare(`
+  CREATE TABLE IF NOT EXISTS subjects (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    code TEXT NOT NULL UNIQUE,
+    created_at TEXT DEFAULT (datetime('now'))
+  )
+`).run();
+
 export default function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method === 'GET') {
     try {
