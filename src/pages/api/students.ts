@@ -13,10 +13,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           // Get specific student by ID
           const { data: student, error } = await supabase
             .from('students')
-            .select(`
-              *,
-              classes(name, section)
-            `)
+            .select('*')
             .eq('id', queryId)
             .single();
           
@@ -29,10 +26,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           // Get students by class
           const { data: students, error } = await supabase
             .from('students')
-            .select(`
-              *,
-              classes(name, section)
-            `)
+            .select('*')
             .eq('class_id', queryClassId)
             .order('roll_no', { ascending: true });
           
@@ -45,10 +39,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           // Get all students
           const { data: students, error } = await supabase
             .from('students')
-            .select(`
-              *,
-              classes(name, section)
-            `)
+            .select('*')
             .order('roll_no', { ascending: true });
           
           if (error) {
@@ -86,10 +77,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             student_id,
             roll_no
           })
-          .select(`
-            *,
-            classes(name, section)
-          `)
+          .select()
           .single();
         
         if (error) {
@@ -113,10 +101,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           .from('students')
           .update(updateData)
           .eq('id', id)
-          .select(`
-            *,
-            classes(name, section)
-          `)
+          .select()
           .single();
         
         if (updateError || !updatedStudent) {

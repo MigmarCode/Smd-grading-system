@@ -9,10 +9,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         // Get all teachers
         const { data: teachers, error } = await supabase
           .from('teachers')
-          .select(`
-            *,
-            classes(name, section)
-          `)
+          .select('*')
           .order('created_at', { ascending: false });
         
         if (error) {
