@@ -1,24 +1,6 @@
 import { NextApiRequest, NextApiResponse } from 'next';
-import Database from 'better-sqlite3';
-import path from 'path';
+import { supabase } from '../../lib/supabase';
 import { v4 as uuidv4 } from 'uuid';
-
-const dbPath = path.resolve(process.cwd(), 'data.db');
-const db = new Database(dbPath);
-
-// Ensure the students table exists with the correct schema
-db.prepare(`
-  CREATE TABLE IF NOT EXISTS students (
-    id TEXT PRIMARY KEY,
-    first_name TEXT NOT NULL,
-    last_name TEXT NOT NULL,
-    class_id TEXT,
-    student_id TEXT NOT NULL UNIQUE,
-    roll_no TEXT,
-    created_at TEXT DEFAULT (datetime('now')),
-    FOREIGN KEY (class_id) REFERENCES classes(id)
-  )
-`).run();
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   try {
@@ -29,38 +11,50 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         
         if (queryId) {
           // Get specific student by ID
-          const student = db.prepare(
-            `SELECT s.*, c.name as class_name, c.section as class_section
-             FROM students s
-             LEFT JOIN classes c ON s.class_id = c.id
-             WHERE s.id = ?`
-          ).get(queryId);
+          const { data: student, error } = await supabase
+            .from('students')
+            .select(`
+              *,
+              classes(name, section)
+            `)
+            .eq('id', queryId)
+            .single();
           
-          if (!student) {
+          if (error || !student) {
             res.status(404).json({ error: 'Student not found' });
             return;
           }
           res.status(200).json(student);
         } else if (queryClassId) {
           // Get students by class
-          const students = db.prepare(
-            `SELECT s.*, c.name as class_name, c.section as class_section
-             FROM students s
-             LEFT JOIN classes c ON s.class_id = c.id
-             WHERE s.class_id = ?
-             ORDER BY s.roll_no ASC, s.first_name, s.last_name`
-          ).all(queryClassId);
+          const { data: students, error } = await supabase
+            .from('students')
+            .select(`
+              *,
+              classes(name, section)
+            `)
+            .eq('class_id', queryClassId)
+            .order('roll_no', { ascending: true });
           
+          if (error) {
+            res.status(500).json({ error: error.message });
+            return;
+          }
           res.status(200).json(students);
         } else {
           // Get all students
-          const students = db.prepare(
-            `SELECT s.*, c.name as class_name, c.section as class_section
-             FROM students s
-             LEFT JOIN classes c ON s.class_id = c.id
-             ORDER BY s.roll_no ASC, s.first_name, s.last_name`
-          ).all();
+          const { data: students, error } = await supabase
+            .from('students')
+            .select(`
+              *,
+              classes(name, section)
+            `)
+            .order('roll_no', { ascending: true });
           
+          if (error) {
+            res.status(500).json({ error: error.message });
+            return;
+          }
           res.status(200).json(students);
         }
         break;
@@ -80,23 +74,28 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           return;
         }
 
-        // Use a more consistent ID generation method
         const studentId = uuidv4();
 
-        const insertStmt = db.prepare(
-          `INSERT INTO students (id, first_name, last_name, class_id, student_id, roll_no)
-           VALUES (?, ?, ?, ?, ?, ?)`
-        );
+        const { data: newStudent, error } = await supabase
+          .from('students')
+          .insert({
+            id: studentId,
+            first_name,
+            last_name,
+            class_id,
+            student_id,
+            roll_no
+          })
+          .select(`
+            *,
+            classes(name, section)
+          `)
+          .single();
         
-        const result = insertStmt.run(studentId, first_name, last_name, class_id, student_id, roll_no);
-        
-        // Return the created student record
-        const newStudent = db.prepare(
-          `SELECT s.*, c.name as class_name, c.section as class_section
-           FROM students s
-           LEFT JOIN classes c ON s.class_id = c.id
-           WHERE s.id = ?`
-        ).get(studentId);
+        if (error) {
+          res.status(500).json({ error: error.message });
+          return;
+        }
         
         res.status(201).json(newStudent);
         break;
@@ -110,33 +109,34 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           return;
         }
         
-        const updateStmt = db.prepare(
-          `UPDATE students SET 
-            first_name = ?, last_name = ?, class_id = ?, student_id = ?, roll_no = ?
-           WHERE id = ?`
-        );
+        const { data: updatedStudent, error: updateError } = await supabase
+          .from('students')
+          .update(updateData)
+          .eq('id', id)
+          .select(`
+            *,
+            classes(name, section)
+          `)
+          .single();
         
-        const updateResult = updateStmt.run(
-          updateData.first_name, updateData.last_name,
-          updateData.class_id, updateData.student_id, updateData.roll_no, id
-        );
-        
-        if (updateResult.changes === 0) {
+        if (updateError || !updatedStudent) {
           res.status(404).json({ error: 'Student not found' });
           return;
         }
         
-        res.status(200).json({ message: 'Student updated successfully' });
+        res.status(200).json(updatedStudent);
         break;
 
       case 'DELETE':
         // Delete student
         const { id: deleteId } = req.query;
         
-        const deleteStmt = db.prepare('DELETE FROM students WHERE id = ?');
-        const deleteResult = deleteStmt.run(deleteId);
+        const { error: deleteError } = await supabase
+          .from('students')
+          .delete()
+          .eq('id', deleteId);
         
-        if (deleteResult.changes === 0) {
+        if (deleteError) {
           res.status(404).json({ error: 'Student not found' });
           return;
         }

@@ -1,9 +1,5 @@
 import { NextApiRequest, NextApiResponse } from 'next';
-import Database from 'better-sqlite3';
-import path from 'path';
-
-const dbPath = path.resolve(process.cwd(), 'data.db');
-const db = new Database(dbPath);
+import { supabase } from '../../lib/supabase';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'GET') {
@@ -14,7 +10,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   try {
     // Get all students
-    const students = db.prepare('SELECT student_id FROM students').all();
+    const { data: students, error } = await supabase
+      .from('students')
+      .select('student_id');
+    
+    if (error) {
+      res.status(500).json({ error: error.message });
+      return;
+    }
     
     // Categorize students based on admission number prefix
     const stats = {
