@@ -1,43 +1,111 @@
 # 🚀 Deployment Guide - SMD Grading System
 
-## **Deploy to Vercel (Recommended)**
+## **Prerequisites**
 
-### **Step 1: Prepare Your Repository**
-1. Make sure all your changes are committed to Git
-2. Push to GitHub/GitLab/Bitbucket
+1. **GitHub Account** - Your code should be pushed to GitHub
+2. **Vercel Account** - Sign up at [vercel.com](https://vercel.com)
+3. **Database Solution** - Since SQLite won't work on Vercel, you'll need a cloud database
 
-### **Step 2: Deploy to Vercel**
-1. Go to [vercel.com](https://vercel.com)
-2. Sign up/Login with your GitHub account
-3. Click "New Project"
-4. Import your repository
-5. Vercel will auto-detect Next.js settings
-6. Click "Deploy"
+## **Database Options for Vercel Deployment**
 
-### **Step 3: Environment Setup (Optional)**
-- Vercel will automatically handle environment variables
-- SQLite database will be created automatically
-- No additional configuration needed
+### **Option 1: Supabase (Recommended)**
+- Free tier available
+- PostgreSQL database
+- Easy to set up
+- Good for educational projects
 
-### **Step 4: Custom Domain (Optional)**
-1. In Vercel dashboard, go to your project
-2. Click "Settings" → "Domains"
-3. Add your custom domain
-4. Follow DNS instructions
+### **Option 2: PlanetScale**
+- MySQL database
+- Free tier available
+- Serverless-friendly
 
-## **Alternative: Deploy to Other Platforms**
+### **Option 3: Neon**
+- PostgreSQL database
+- Free tier available
+- Serverless-friendly
 
-### **Netlify**
-- Similar process to Vercel
-- Supports Next.js out of the box
+## **Deployment Steps**
 
-### **Railway**
-- Good for full-stack apps
-- Supports SQLite databases
+### **Step 1: Set up Cloud Database**
 
-### **DigitalOcean App Platform**
-- More control over infrastructure
-- Requires more configuration
+1. **For Supabase:**
+   - Go to [supabase.com](https://supabase.com)
+   - Create a new project
+   - Get your database URL and API keys
+   - Run the database setup script in Supabase SQL editor
+
+2. **For PlanetScale:**
+   - Go to [planetscale.com](https://planetscale.com)
+   - Create a new database
+   - Get your connection string
+   - Run the database setup script
+
+### **Step 2: Update Environment Variables**
+
+Create a `.env.local` file with your database credentials:
+
+```env
+# For Supabase
+DATABASE_URL=your_supabase_connection_string
+SUPABASE_URL=your_supabase_url
+SUPABASE_ANON_KEY=your_supabase_anon_key
+
+# For PlanetScale
+DATABASE_URL=your_planetscale_connection_string
+```
+
+### **Step 3: Deploy to Vercel**
+
+1. **Connect GitHub to Vercel:**
+   - Go to [vercel.com](https://vercel.com)
+   - Click "New Project"
+   - Import your GitHub repository
+
+2. **Configure Environment Variables:**
+   - In your Vercel project settings
+   - Add the same environment variables from `.env.local`
+
+3. **Deploy:**
+   - Vercel will automatically build and deploy your project
+   - Your app will be available at `https://your-project-name.vercel.app`
+
+## **Database Migration Required**
+
+The current code uses SQLite which won't work on Vercel. You need to:
+
+1. **Replace SQLite with a cloud database client**
+2. **Update all API routes to use the new database**
+3. **Run database migrations**
+
+## **Current Issues to Fix**
+
+1. **SQLite Dependency**: Remove `better-sqlite3` and `sqlite3` from package.json
+2. **Database Connection**: Update `src/lib/database.ts` to use cloud database
+3. **API Routes**: Update all API routes in `src/pages/api/` to use cloud database
+4. **Environment Variables**: Add proper environment variable handling
+
+## **Quick Fix Commands**
+
+```bash
+# Remove SQLite dependencies
+npm uninstall better-sqlite3 sqlite3 @types/sqlite3 @types/better-sqlite3
+
+# Add cloud database client (example for Supabase)
+npm install @supabase/supabase-js
+
+# Or for PlanetScale
+npm install mysql2
+```
+
+## **Testing Locally**
+
+Before deploying, test your changes locally:
+
+```bash
+npm run dev
+```
+
+Make sure all API endpoints work with the new database setup.
 
 ## **Post-Deployment Checklist**
 
