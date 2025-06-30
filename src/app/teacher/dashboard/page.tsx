@@ -508,7 +508,7 @@ export default function TeacherDashboard() {
                 </svg>
               </div>
               <div>
-                <h1 className="text-xl lg:text-3xl font-bold bg-gradient-to-r from-slate-900 to-slate-700 bg-clip-text text-transparent">Teacher Dashboard</h1>
+                <h1 className="text-xl lg:text-3xl font-bold bg-gradient-to-r from-slate-900 to-slate-700 bg-clip-text text-transparent">Class Teacher Dashboard</h1>
                 <p className="text-xs lg:text-sm text-slate-600 font-medium hidden sm:block">Manage grades and student progress</p>
               </div>
             </div>
