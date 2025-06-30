@@ -15,6 +15,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       .select('student_id');
     
     if (error) {
+      console.error('Get students for stats error:', error);
       res.status(500).json({ error: error.message });
       return;
     }

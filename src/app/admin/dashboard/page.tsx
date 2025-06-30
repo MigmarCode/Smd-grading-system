@@ -115,7 +115,7 @@ export default function AdminDashboard() {
   const [activeSection, setActiveSection] = useState<'dashboard' | 'classes' | 'subjects' | 'teachers' | 'students'>('dashboard');
 
   // Classes: use API
-  const [classes, setClasses] = useState<{ id: number; name: string; section: string }[]>([]);
+  const [classes, setClasses] = useState<{ id: number; name: string; section: string; subjects?: string[] }[]>([]);
   const [classesLoading, setClassesLoading] = useState(true);
   const [classesError, setClassesError] = useState<string | null>(null);
 
@@ -395,8 +395,8 @@ export default function AdminDashboard() {
       const method = editingTeacher ? 'PUT' : 'POST';
       
       const requestBody = editingTeacher 
-        ? { id: editingTeacher.id, first_name: teacherFirstName, last_name: teacherLastName, class_id: teacherClassId || null }
-        : { first_name: teacherFirstName, last_name: teacherLastName, class_id: teacherClassId || null };
+        ? { id: editingTeacher.id, first_name: teacherFirstName, last_name: teacherLastName, class_id: teacherClassId }
+        : { first_name: teacherFirstName, last_name: teacherLastName, class_id: teacherClassId };
       
       const response = await fetch(url, {
         method,
@@ -944,6 +944,7 @@ export default function AdminDashboard() {
                         <th className="px-4 lg:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Class Name</th>
                         <th className="px-4 lg:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden sm:table-cell">Section</th>
                         <th className="px-4 lg:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden lg:table-cell">Full Name</th>
+                        <th className="px-4 lg:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Subjects</th>
                         <th className="px-4 lg:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                       </tr>
                     </thead>
@@ -962,6 +963,22 @@ export default function AdminDashboard() {
                           <td className="px-4 lg:px-6 py-4 whitespace-nowrap hidden lg:table-cell">
                             <div className="text-sm text-gray-900">
                               {classItem.name}{classItem.section ? ` - ${classItem.section}` : ''}
+                            </div>
+                          </td>
+                          <td className="px-4 lg:px-6 py-4 whitespace-nowrap">
+                            <div className="flex flex-wrap gap-1">
+                              {classItem.subjects && classItem.subjects.length > 0 ? (
+                                classItem.subjects.map((subject: string, index: number) => (
+                                  <span
+                                    key={index}
+                                    className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-purple-100 text-purple-800"
+                                  >
+                                    {subject}
+                                  </span>
+                                ))
+                              ) : (
+                                <span className="text-sm text-gray-500">No subjects assigned</span>
+                              )}
                             </div>
                           </td>
                           <td className="px-4 lg:px-6 py-4 whitespace-nowrap">
@@ -1239,7 +1256,7 @@ export default function AdminDashboard() {
                                               </svg>
                                             </button>
                                             <button
-                                              onClick={() => handleDeleteStudent(student.student_id)}
+                                              onClick={() => handleDeleteStudent(student.id)}
                                               className="text-red-600 hover:text-red-900 p-1 rounded hover:bg-red-50"
                                               title="Delete"
                                             >
@@ -1336,7 +1353,7 @@ export default function AdminDashboard() {
                                             </svg>
                                           </button>
                                           <button
-                                            onClick={() => handleDeleteStudent(student.student_id)}
+                                            onClick={() => handleDeleteStudent(student.id)}
                                             className="text-red-600 hover:text-red-900 p-1 rounded hover:bg-red-50"
                                             title="Delete"
                                           >
@@ -1382,6 +1399,7 @@ export default function AdminDashboard() {
                 setShowClassModal(false);
                 setClassName("");
                 setSection("");
+                setSelectedSubjects([]);
                 setEditingClass(null);
                 setError(null);
               }}
@@ -1415,6 +1433,41 @@ export default function AdminDashboard() {
                   placeholder="e.g., A, B, C"
                   className="w-full border border-neutral-300 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-200"
                 />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Assign Subjects</label>
+                <div className="max-h-40 overflow-y-auto border border-neutral-300 rounded-lg p-3 bg-gray-50">
+                  {subjects.length > 0 ? (
+                    <div className="space-y-2">
+                      {subjects.map((subject) => (
+                        <label key={subject.id} className="flex items-center space-x-2 cursor-pointer hover:bg-gray-100 p-1 rounded">
+                          <input
+                            type="checkbox"
+                            checked={selectedSubjects.includes(subject.id)}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setSelectedSubjects([...selectedSubjects, subject.id]);
+                              } else {
+                                setSelectedSubjects(selectedSubjects.filter(id => id !== subject.id));
+                              }
+                            }}
+                            className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                          />
+                          <span className="text-sm text-gray-700">{subject.name}</span>
+                        </label>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-sm text-gray-500 text-center py-2">
+                      No subjects available. Please add subjects first.
+                    </p>
+                  )}
+                </div>
+                {selectedSubjects.length > 0 && (
+                  <p className="text-xs text-gray-600 mt-1">
+                    Selected: {selectedSubjects.length} subject{selectedSubjects.length !== 1 ? 's' : ''}
+                  </p>
+                )}
               </div>
               <button
                 type="submit"

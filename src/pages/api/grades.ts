@@ -1,6 +1,5 @@
 import { NextApiRequest, NextApiResponse } from 'next';
 import { supabase } from '../../lib/supabase';
-import { v4 as uuidv4 } from 'uuid';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   try {
@@ -24,6 +23,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             .order('created_at', { ascending: false });
           
           if (error) {
+            console.error('Get grades by student error:', error);
             res.status(500).json({ error: error.message });
             return;
           }
@@ -44,6 +44,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             .order('created_at', { ascending: false });
           
           if (error) {
+            console.error('Get grades by class error:', error);
             res.status(500).json({ error: error.message });
             return;
           }
@@ -61,6 +62,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             .order('created_at', { ascending: false });
           
           if (error) {
+            console.error('Get all grades error:', error);
             res.status(500).json({ error: error.message });
             return;
           }
@@ -98,7 +100,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           } = gradeEntry;
 
           return {
-            id: uuidv4(),
             student_id,
             teacher_id,
             class_id,
@@ -121,10 +122,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         // Use upsert to handle duplicates gracefully
         const { data: insertedGrades, error: insertError } = await supabase
           .from('grades')
-          .upsert(gradesToInsert, { onConflict: 'id' })
+          .upsert(gradesToInsert, { onConflict: 'student_id,class_id,term' })
           .select();
         
         if (insertError) {
+          console.error('Insert grades error:', insertError);
           res.status(500).json({ error: insertError.message });
           return;
         }
@@ -161,6 +163,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           .single();
         
         if (updateError || !updatedGrade) {
+          console.error('Update grade error:', updateError);
           res.status(404).json({ error: 'Grade record not found' });
           return;
         }
@@ -178,6 +181,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           .eq('id', deleteId);
         
         if (deleteError) {
+          console.error('Delete grade error:', deleteError);
           res.status(404).json({ error: 'Grade record not found' });
           return;
         }

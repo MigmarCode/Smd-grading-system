@@ -1,6 +1,5 @@
 import { NextApiRequest, NextApiResponse } from 'next';
 import { supabase } from '../../lib/supabase';
-import { v4 as uuidv4 } from 'uuid';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   try {
@@ -13,6 +12,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           .order('created_at', { ascending: false });
         
         if (error) {
+          console.error('Get subjects error:', error);
           res.status(500).json({ error: error.message });
           return;
         }
@@ -26,13 +26,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           return res.status(400).json({ error: 'Name is required' });
         }
         
-        const subjectId = uuidv4();
         const code = name.toUpperCase().replace(/\s+/g, '_');
         
         const { data: newSubject, error: createError } = await supabase
           .from('subjects')
           .insert({
-            id: subjectId,
             name,
             code
           })
@@ -40,6 +38,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           .single();
         
         if (createError) {
+          console.error('Create subject error:', createError);
           if (createError.code === '23505') { // Unique constraint violation
             res.status(409).json({ error: 'Subject code must be unique' });
           } else {
@@ -70,6 +69,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           .single();
         
         if (updateError) {
+          console.error('Update subject error:', updateError);
           if (updateError.code === '23505') { // Unique constraint violation
             res.status(409).json({ error: 'Subject code must be unique' });
           } else if (updateError.code === 'PGRST116') { // Not found
@@ -95,6 +95,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           .eq('id', deleteId);
         
         if (deleteError) {
+          console.error('Delete subject error:', deleteError);
           return res.status(404).json({ error: 'Subject not found' });
         }
         res.status(200).json({ message: 'Subject deleted successfully' });

@@ -1,22 +1,33 @@
 import { NextApiRequest, NextApiResponse } from 'next';
 import { supabase } from '../../lib/supabase';
-import { v4 as uuidv4 } from 'uuid';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   try {
     switch (req.method) {
       case 'GET':
-        // Get all teachers
+        // Get all teachers with class information
         const { data: teachers, error } = await supabase
           .from('teachers')
-          .select('*')
+          .select(`
+            *,
+            classes(name, section)
+          `)
           .order('created_at', { ascending: false });
         
         if (error) {
+          console.error('Get teachers error:', error);
           res.status(500).json({ error: error.message });
           return;
         }
-        res.status(200).json(teachers);
+
+        // Transform the data to match the expected format
+        const transformedTeachers = teachers.map(teacher => ({
+          ...teacher,
+          class_name: teacher.classes?.name || null,
+          class_section: teacher.classes?.section || null
+        }));
+
+        res.status(200).json(transformedTeachers);
         break;
 
       case 'POST':
@@ -26,24 +37,33 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           return res.status(400).json({ error: 'First name and last name are required' });
         }
         
-        const teacherId = uuidv4();
         const { data: newTeacher, error: createError } = await supabase
           .from('teachers')
           .insert({
-            id: teacherId,
             first_name,
             last_name,
-            phone: '',
             class_id: class_id || null
           })
-          .select()
+          .select(`
+            *,
+            classes(name, section)
+          `)
           .single();
         
         if (createError) {
+          console.error('Create teacher error:', createError);
           res.status(500).json({ error: createError.message });
           return;
         }
-        res.status(201).json(newTeacher);
+
+        // Transform the response
+        const transformedNewTeacher = {
+          ...newTeacher,
+          class_name: newTeacher.classes?.name || null,
+          class_section: newTeacher.classes?.section || null
+        };
+
+        res.status(201).json(transformedNewTeacher);
         break;
 
       case 'PUT':
@@ -61,13 +81,25 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             class_id: updateClassId || null
           })
           .eq('id', id)
-          .select()
+          .select(`
+            *,
+            classes(name, section)
+          `)
           .single();
         
         if (updateError || !updatedTeacher) {
+          console.error('Update teacher error:', updateError);
           return res.status(404).json({ error: 'Teacher not found' });
         }
-        res.status(200).json(updatedTeacher);
+
+        // Transform the response
+        const transformedUpdatedTeacher = {
+          ...updatedTeacher,
+          class_name: updatedTeacher.classes?.name || null,
+          class_section: updatedTeacher.classes?.section || null
+        };
+
+        res.status(200).json(transformedUpdatedTeacher);
         break;
 
       case 'DELETE':
@@ -83,6 +115,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           .eq('id', deleteId);
         
         if (deleteError) {
+          console.error('Delete teacher error:', deleteError);
           return res.status(404).json({ error: 'Teacher not found' });
         }
         res.status(200).json({ message: 'Teacher deleted successfully' });

@@ -15,6 +15,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             .eq('class_id', queryClassId);
           
           if (classSubjectsError) {
+            console.error('Get class subjects error:', classSubjectsError);
             res.status(500).json({ error: classSubjectsError.message });
             return;
           }
@@ -33,6 +34,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             .order('name', { ascending: true });
           
           if (error) {
+            console.error('Get subjects error:', error);
             res.status(500).json({ error: error.message });
             return;
           }
@@ -50,6 +52,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             .order('subjects(name)', { ascending: true });
           
           if (error) {
+            console.error('Get all relationships error:', error);
             res.status(500).json({ error: error.message });
             return;
           }
@@ -71,6 +74,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           .eq('class_id', postClassId);
         
         if (deleteError) {
+          console.error('Delete class subjects error:', deleteError);
           res.status(500).json({ error: deleteError.message });
           return;
         }
@@ -86,6 +90,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           .insert(relationshipsToInsert);
         
         if (insertError) {
+          console.error('Insert class subjects error:', insertError);
           res.status(500).json({ error: insertError.message });
           return;
         }

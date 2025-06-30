@@ -1,25 +1,37 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { supabase } from '../../lib/supabase';
-import { v4 as uuidv4 } from 'uuid';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   try {
     switch (req.method) {
       case 'GET':
-        // Get all classes - sort numerically by name, then by section
+        // Get all classes with subject information
         const { data: classes, error } = await supabase
           .from('classes')
-          .select('*')
+          .select(`
+            *,
+            class_subjects(
+              subject_id,
+              subjects(name)
+            )
+          `)
           .order('name', { ascending: true })
           .order('section', { ascending: true });
         
         if (error) {
+          console.error('Supabase error:', error);
           res.status(500).json({ error: error.message });
           return;
         }
         
+        // Transform the data to include subject names
+        const transformedClasses = classes.map(cls => ({
+          ...cls,
+          subjects: cls.class_subjects?.map((cs: any) => cs.subjects?.name).filter(Boolean) || []
+        }));
+        
         // Sort classes numerically by name, then by section (empty sections last)
-        const sortedClasses = classes.sort((a, b) => {
+        const sortedClasses = transformedClasses.sort((a, b) => {
           const nameA = parseInt(a.name) || 0;
           const nameB = parseInt(b.name) || 0;
           if (nameA !== nameB) return nameA - nameB;
@@ -41,11 +53,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           return res.status(400).json({ error: 'Name is required' });
         }
         
-        const classId = uuidv4();
         const { data: newClass, error: createError } = await supabase
           .from('classes')
           .insert({
-            id: classId,
             name,
             section: section || ""
           })
@@ -53,6 +63,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           .single();
         
         if (createError) {
+          console.error('Create class error:', createError);
           res.status(500).json({ error: createError.message });
           return;
         }
@@ -78,6 +89,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           .single();
         
         if (updateError || !updatedClass) {
+          console.error('Update class error:', updateError);
           return res.status(404).json({ error: 'Class not found' });
         }
         
@@ -97,6 +109,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           .eq('id', deleteId);
         
         if (deleteError) {
+          console.error('Delete class error:', deleteError);
           return res.status(404).json({ error: 'Class not found' });
         }
         

@@ -1,6 +1,5 @@
 import { NextApiRequest, NextApiResponse } from 'next';
 import { supabase } from '../../lib/supabase';
-import { v4 as uuidv4 } from 'uuid';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   try {
@@ -18,6 +17,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             .single();
           
           if (error || !student) {
+            console.error('Get student error:', error);
             res.status(404).json({ error: 'Student not found' });
             return;
           }
@@ -31,6 +31,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             .order('roll_no', { ascending: true });
           
           if (error) {
+            console.error('Get students by class error:', error);
             res.status(500).json({ error: error.message });
             return;
           }
@@ -43,6 +44,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             .order('roll_no', { ascending: true });
           
           if (error) {
+            console.error('Get all students error:', error);
             res.status(500).json({ error: error.message });
             return;
           }
@@ -65,12 +67,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           return;
         }
 
-        const studentId = uuidv4();
-
         const { data: newStudent, error } = await supabase
           .from('students')
           .insert({
-            id: studentId,
             first_name,
             last_name,
             class_id,
@@ -81,6 +80,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           .single();
         
         if (error) {
+          console.error('Create student error:', error);
           res.status(500).json({ error: error.message });
           return;
         }
@@ -105,6 +105,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           .single();
         
         if (updateError || !updatedStudent) {
+          console.error('Update student error:', updateError);
           res.status(404).json({ error: 'Student not found' });
           return;
         }
@@ -122,6 +123,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           .eq('id', deleteId);
         
         if (deleteError) {
+          console.error('Delete student error:', deleteError);
           res.status(404).json({ error: 'Student not found' });
           return;
         }
