@@ -11,14 +11,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  const { id, email, role } = req.body;
-  if (!id || !email || !role) {
+  const { id, email, role, first_name, last_name } = req.body;
+  if (!id || !email || !role || !first_name || !last_name) {
     return res.status(400).json({ error: 'Missing required fields' });
   }
 
   const { data, error } = await supabaseAdmin.auth.admin.updateUserById(id, {
     email,
-    user_metadata: { role },
+    user_metadata: { role, first_name, last_name },
   });
 
   if (error) {

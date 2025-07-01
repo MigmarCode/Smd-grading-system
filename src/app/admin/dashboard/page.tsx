@@ -169,7 +169,7 @@ export default function AdminDashboard() {
   const [studentAdmissionNo, setStudentAdmissionNo] = useState("");
   const [studentClassId, setStudentClassId] = useState("");
   const [error, setError] = useState<string | null>(null);
-  const [currentUser, setCurrentUser] = useState("Admin User");
+  const [currentUser, setCurrentUser] = useState<string | null>(null);
 
   // Edit states
   const [editingClass, setEditingClass] = useState<any>(null);
@@ -281,6 +281,21 @@ export default function AdminDashboard() {
         setStudentStatsError("Failed to load student statistics");
         setStudentStatsLoading(false);
       });
+  }, []);
+
+  useEffect(() => {
+    const fetchUser = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        const fullName = user.user_metadata?.first_name && user.user_metadata?.last_name
+          ? `${user.user_metadata.first_name} ${user.user_metadata.last_name}`
+          : (user.email || user.user_metadata?.name || 'Admin User');
+        setCurrentUser(fullName);
+      } else {
+        setCurrentUser('Admin User');
+      }
+    };
+    fetchUser();
   }, []);
 
   // TEMPORARILY DISABLED ROLE CHECK FOR ADMIN ACCESS
@@ -754,6 +769,14 @@ export default function AdminDashboard() {
   const [deleteUserLoading, setDeleteUserLoading] = useState(false);
   const [deleteUserError, setDeleteUserError] = useState("");
 
+  // Add state for first and last name in Add User modal
+  const [userFirstName, setUserFirstName] = useState("");
+  const [userLastName, setUserLastName] = useState("");
+
+  // Add state for first and last name in Edit User modal
+  const [editUserFirstName, setEditUserFirstName] = useState("");
+  const [editUserLastName, setEditUserLastName] = useState("");
+
   return (
     <div className="min-h-screen" style={{ backgroundColor: '#fffef2' }}>
       {/* Mobile menu overlay */}
@@ -838,8 +861,8 @@ export default function AdminDashboard() {
               </div>
               
               <div className="flex items-center space-x-2 lg:space-x-4">
-                <div className="text-black font-medium text-sm lg:text-base hidden sm:block">
-                  Admin User
+                <div className="text-black font-medium text-sm lg:text-base hidden sm:block truncate max-w-[120px] lg:max-w-[200px]" title={currentUser || 'Admin User'}>
+                  {currentUser || 'Admin User'}
                 </div>
                 <button
                   onClick={handleLogout}
@@ -1494,6 +1517,8 @@ export default function AdminDashboard() {
                                 setEditUser(user);
                                 setEditUserEmail(user.email);
                                 setEditUserRole(user.user_metadata?.role || "");
+                                setEditUserFirstName(user.user_metadata?.first_name || "");
+                                setEditUserLastName(user.user_metadata?.last_name || "");
                                 setEditUserError("");
                                 setEditUserSuccess("");
                               }}
@@ -1535,7 +1560,13 @@ export default function AdminDashboard() {
                         const res = await fetch("/api/admin-update-user", {
                           method: "POST",
                           headers: { "Content-Type": "application/json" },
-                          body: JSON.stringify({ id: editUser.id, email: editUserEmail, role: editUserRole })
+                          body: JSON.stringify({
+                            id: editUser.id,
+                            email: editUserEmail,
+                            role: editUserRole,
+                            first_name: editUserFirstName,
+                            last_name: editUserLastName
+                          })
                         });
                         const data = await res.json();
                         setEditUserLoading(false);
@@ -1573,6 +1604,22 @@ export default function AdminDashboard() {
                         <option value="class_teacher">Class Teacher</option>
                         <option value="subject_teacher">Subject Teacher</option>
                       </select>
+                      <input
+                        type="text"
+                        placeholder="First Name"
+                        value={editUserFirstName}
+                        onChange={e => setEditUserFirstName(e.target.value)}
+                        required
+                        className="border border-neutral-300 rounded-lg px-4 py-3 text-base focus:outline-none focus:ring-2 focus:ring-blue-400"
+                      />
+                      <input
+                        type="text"
+                        placeholder="Last Name"
+                        value={editUserLastName}
+                        onChange={e => setEditUserLastName(e.target.value)}
+                        required
+                        className="border border-neutral-300 rounded-lg px-4 py-3 text-base focus:outline-none focus:ring-2 focus:ring-blue-400"
+                      />
                       {editUserError && <div className="text-red-600 text-sm text-center">{editUserError}</div>}
                       {editUserSuccess && <div className="text-green-600 text-sm text-center">{editUserSuccess}</div>}
                       <button
@@ -1965,7 +2012,13 @@ export default function AdminDashboard() {
                 const res = await fetch("/api/admin-create-user", {
                   method: "POST",
                   headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify({ email: userEmail, password: userPassword, role: userRole })
+                  body: JSON.stringify({
+                    email: userEmail,
+                    password: userPassword,
+                    role: userRole,
+                    first_name: userFirstName,
+                    last_name: userLastName
+                  })
                 });
                 const data = await res.json();
                 setUserLoading(false);
@@ -1974,6 +2027,8 @@ export default function AdminDashboard() {
                   setUserEmail("");
                   setUserPassword("");
                   setUserRole("class_teacher");
+                  setUserFirstName("");
+                  setUserLastName("");
                   setTimeout(() => {
                     setShowUserModal(false);
                     setUserSuccess("");
@@ -2008,6 +2063,22 @@ export default function AdminDashboard() {
                 <option value="class_teacher">Class Teacher</option>
                 <option value="subject_teacher">Subject Teacher</option>
               </select>
+              <input
+                type="text"
+                placeholder="First Name"
+                value={userFirstName}
+                onChange={e => setUserFirstName(e.target.value)}
+                required
+                className="border border-neutral-300 rounded-lg px-4 py-3 text-base focus:outline-none focus:ring-2 focus:ring-green-400"
+              />
+              <input
+                type="text"
+                placeholder="Last Name"
+                value={userLastName}
+                onChange={e => setUserLastName(e.target.value)}
+                required
+                className="border border-neutral-300 rounded-lg px-4 py-3 text-base focus:outline-none focus:ring-2 focus:ring-green-400"
+              />
               {userError && <div className="text-red-600 text-sm text-center">{userError}</div>}
               {userSuccess && <div className="text-green-600 text-sm text-center">{userSuccess}</div>}
               <button
