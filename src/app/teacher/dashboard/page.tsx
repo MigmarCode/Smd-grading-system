@@ -2,6 +2,8 @@
 import React, { useState, useEffect, useRef } from "react";
 import jsPDF from "jspdf";
 import html2canvas from "html2canvas";
+import { useRouter } from "next/navigation";
+import { supabase } from "@/lib/supabase";
 
 export default function TeacherDashboard() {
   const [classes, setClasses] = useState<any[]>([]);
@@ -22,6 +24,7 @@ export default function TeacherDashboard() {
   const studentRefs = useRef<{ [studentId: string]: HTMLDivElement | null }>({});
   const modalResultRef = useRef<HTMLDivElement>(null);
   const classResultRef = useRef<HTMLDivElement>(null);
+  const router = useRouter();
 
   // Fetch classes from API on mount
   useEffect(() => {
@@ -494,6 +497,17 @@ export default function TeacherDashboard() {
     console.log('Final order:', sorted.map(s => s.name));
     return sorted;
   };
+
+  useEffect(() => {
+    const checkRole = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      const role = user?.user_metadata?.role;
+      if (role !== "class_teacher") {
+        router.replace("/not-authorized");
+      }
+    };
+    checkRole();
+  }, [router]);
 
   return (
     <div className="min-h-screen" style={{ backgroundColor: '#fffef2' }}>

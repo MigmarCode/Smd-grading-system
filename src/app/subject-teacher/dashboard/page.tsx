@@ -2,10 +2,24 @@
 import React, { useState, useEffect, useRef } from "react";
 import jsPDF from "jspdf";
 import html2canvas from "html2canvas";
+import { supabase } from "@/lib/supabase";
+import { useRouter } from "next/navigation";
 
 export default function SubjectTeacherDashboard() {
   const [classes, setClasses] = useState<any[]>([]);
   const [selectedClass, setSelectedClass] = useState("");
+  const router = useRouter();
+
+  useEffect(() => {
+    const checkRole = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      const role = user?.user_metadata?.role;
+      if (role !== "subject_teacher") {
+        router.replace("/not-authorized");
+      }
+    };
+    checkRole();
+  }, [router]);
 
   useEffect(() => {
     // Placeholder: fetch all classes (update logic later as needed)

@@ -2,6 +2,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Building2 } from "lucide-react";
+import { supabase } from "@/lib/supabase";
 
 // SVG icons as functional components
 function TeacherIcon(props: React.SVGProps<SVGSVGElement>) {
@@ -100,6 +101,7 @@ const navigation = [
   { name: 'Subjects', id: 'subjects' as const, icon: SubjectIcon },
   { name: 'Class Teachers', id: 'teachers' as const, icon: TeacherIcon },
   { name: 'Students', id: 'students' as const, icon: StudentIcon },
+  { name: 'Users', id: 'users' as const, icon: SettingsIcon },
 ];
 
 export default function AdminDashboard() {
@@ -112,7 +114,7 @@ export default function AdminDashboard() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   // Active section state
-  const [activeSection, setActiveSection] = useState<'dashboard' | 'classes' | 'subjects' | 'teachers' | 'students'>('dashboard');
+  const [activeSection, setActiveSection] = useState<'dashboard' | 'classes' | 'subjects' | 'teachers' | 'students' | 'users'>('dashboard');
 
   // Classes: use API
   const [classes, setClasses] = useState<{ id: number; name: string; section: string; subjects?: string[] }[]>([]);
@@ -280,6 +282,18 @@ export default function AdminDashboard() {
         setStudentStatsLoading(false);
       });
   }, []);
+
+  // TEMPORARILY DISABLED ROLE CHECK FOR ADMIN ACCESS
+  useEffect(() => {
+    const checkRole = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      const role = user?.user_metadata?.role;
+      if (role !== "admin") {
+        router.replace("/not-authorized");
+      }
+    };
+    checkRole();
+  }, [router]);
 
   const handleLogout = () => {
     router.push('/');
@@ -697,6 +711,49 @@ export default function AdminDashboard() {
     },
   ];
 
+  // Add state for user modal
+  const [showUserModal, setShowUserModal] = useState(false);
+  const [userEmail, setUserEmail] = useState("");
+  const [userPassword, setUserPassword] = useState("");
+  const [userRole, setUserRole] = useState("class_teacher");
+  const [userLoading, setUserLoading] = useState(false);
+  const [userError, setUserError] = useState("");
+  const [userSuccess, setUserSuccess] = useState("");
+
+  // Add state for user list
+  const [users, setUsers] = useState<any[]>([]);
+  const [usersLoading, setUsersLoading] = useState(false);
+  const [usersError, setUsersError] = useState("");
+
+  // Fetch users when Users section is active
+  useEffect(() => {
+    if (activeSection === 'users') {
+      setUsersLoading(true);
+      setUsersError("");
+      fetch("/api/admin-list-users")
+        .then(res => res.json())
+        .then(data => {
+          setUsers(data.users || []);
+          setUsersLoading(false);
+        })
+        .catch(() => {
+          setUsersError("Failed to fetch users.");
+          setUsersLoading(false);
+        });
+    }
+  }, [activeSection]);
+
+  // Add state for editing and deleting users
+  const [editUser, setEditUser] = useState<any>(null);
+  const [editUserEmail, setEditUserEmail] = useState("");
+  const [editUserRole, setEditUserRole] = useState("");
+  const [editUserLoading, setEditUserLoading] = useState(false);
+  const [editUserError, setEditUserError] = useState("");
+  const [editUserSuccess, setEditUserSuccess] = useState("");
+  const [deleteUser, setDeleteUser] = useState<any>(null);
+  const [deleteUserLoading, setDeleteUserLoading] = useState(false);
+  const [deleteUserError, setDeleteUserError] = useState("");
+
   return (
     <div className="min-h-screen" style={{ backgroundColor: '#fffef2' }}>
       {/* Mobile menu overlay */}
@@ -768,6 +825,7 @@ export default function AdminDashboard() {
                   {activeSection === 'subjects' && 'Subjects Management'}
                   {activeSection === 'teachers' && 'Class Teacher Management'}
                   {activeSection === 'students' && 'Students Management'}
+                  {activeSection === 'users' && 'Users Management'}
                 </h1>
                 <p className="text-sm lg:text-base text-neutral-600 hidden sm:block">
                   {activeSection === 'dashboard' && 'Welcome!'}
@@ -775,6 +833,7 @@ export default function AdminDashboard() {
                   {activeSection === 'subjects' && 'Manage and organize your school subjects.'}
                   {activeSection === 'teachers' && 'Manage and organize your class teachers.'}
                   {activeSection === 'students' && 'Manage and organize your school students.'}
+                  {activeSection === 'users' && 'Manage and organize your users.'}
                 </p>
               </div>
               
@@ -850,7 +909,7 @@ export default function AdminDashboard() {
               </div>
 
               {/* Quick Actions */}
-              <div className="w-full">
+              <div className="w-full mb-6 lg:mb-8">
                 <div className="card">
                   <div className="card-header">
                     <h3 className="text-lg font-semibold text-neutral-900">Quick Actions</h3>
@@ -921,6 +980,22 @@ export default function AdminDashboard() {
                           <div>
                             <h4 className="text-base lg:text-lg font-semibold text-orange-900 group-hover:text-orange-800 transition-colors">Add Student</h4>
                             <p className="text-xs lg:text-sm text-orange-700 group-hover:text-orange-600 transition-colors">Create new student</p>
+                          </div>
+                        </div>
+                      </button>
+
+                      {/* Add Quick Actions card for user management */}
+                      <button
+                        onClick={() => setShowUserModal(true)}
+                        className="group relative bg-gradient-to-br from-green-50 to-green-100 border border-green-200 rounded-xl p-4 lg:p-6 hover:from-green-100 hover:to-green-200 hover:border-green-300 transition-all duration-300 transform hover:-translate-y-1 hover:shadow-lg"
+                      >
+                        <div className="flex flex-col items-center text-center space-y-3 lg:space-y-4">
+                          <div className="w-12 h-12 lg:w-16 lg:h-16 bg-gradient-to-br from-green-500 to-green-600 rounded-2xl flex items-center justify-center group-hover:scale-110 transition-transform duration-300 shadow-lg">
+                            <SettingsIcon className="text-white w-6 h-6 lg:w-8 lg:h-8" />
+                          </div>
+                          <div>
+                            <h4 className="text-base lg:text-lg font-semibold text-green-900 group-hover:text-green-800 transition-colors">Add User</h4>
+                            <p className="text-xs lg:text-sm text-green-700 group-hover:text-green-600 transition-colors">Create new user</p>
                           </div>
                         </div>
                       </button>
@@ -1387,6 +1462,184 @@ export default function AdminDashboard() {
               </div>
             </div>
           )}
+
+          {activeSection === 'users' && (
+            <div className="w-full max-w-3xl mx-auto mt-8">
+              <h2 className="text-2xl font-bold mb-6 text-center text-green-700">All Users</h2>
+              {usersLoading ? (
+                <div className="text-center py-8 text-lg text-neutral-500">Loading users...</div>
+              ) : usersError ? (
+                <div className="text-center py-8 text-lg text-red-600">{usersError}</div>
+              ) : (
+                <div className="overflow-x-auto rounded-xl shadow">
+                  <table className="min-w-full bg-white">
+                    <thead>
+                      <tr>
+                        <th className="px-6 py-3 border-b text-left text-sm font-semibold text-neutral-700">Email</th>
+                        <th className="px-6 py-3 border-b text-left text-sm font-semibold text-neutral-700">Role</th>
+                        <th className="px-6 py-3 border-b text-left text-sm font-semibold text-neutral-700">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {users.map(user => (
+                        <tr key={user.id} className="hover:bg-green-50 transition-colors">
+                          <td className="px-6 py-4 border-b text-sm">{user.email}</td>
+                          <td className="px-6 py-4 border-b text-sm">
+                            <span className={`inline-block px-2 py-1 rounded text-xs font-semibold ${user.user_metadata?.role === 'admin' ? 'bg-yellow-100 text-yellow-800' : user.user_metadata?.role === 'class_teacher' ? 'bg-blue-100 text-blue-800' : user.user_metadata?.role === 'subject_teacher' ? 'bg-green-100 text-green-800' : 'bg-neutral-100 text-neutral-500'}`}>{user.user_metadata?.role || <span className='italic text-neutral-400'>none</span>}</span>
+                          </td>
+                          <td className="px-6 py-4 border-b text-sm flex gap-2">
+                            <button
+                              className="px-3 py-1 rounded bg-blue-100 text-blue-700 hover:bg-blue-200 font-semibold text-xs"
+                              onClick={() => {
+                                setEditUser(user);
+                                setEditUserEmail(user.email);
+                                setEditUserRole(user.user_metadata?.role || "");
+                                setEditUserError("");
+                                setEditUserSuccess("");
+                              }}
+                            >Edit</button>
+                            <button
+                              className="px-3 py-1 rounded bg-red-100 text-red-700 hover:bg-red-200 font-semibold text-xs"
+                              onClick={() => {
+                                setDeleteUser(user);
+                                setDeleteUserError("");
+                              }}
+                            >Delete</button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+              {/* Edit User Modal */}
+              {editUser && (
+                <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+                  <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-8 relative">
+                    <button
+                      onClick={() => setEditUser(null)}
+                      className="absolute top-4 right-4 text-neutral-400 hover:text-neutral-700"
+                    >
+                      <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </button>
+                    <h2 className="text-2xl font-bold mb-6 text-center text-blue-700">Edit User</h2>
+                    <form
+                      className="flex flex-col gap-4"
+                      onSubmit={async (e) => {
+                        e.preventDefault();
+                        setEditUserLoading(true);
+                        setEditUserError("");
+                        setEditUserSuccess("");
+                        const res = await fetch("/api/admin-update-user", {
+                          method: "POST",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({ id: editUser.id, email: editUserEmail, role: editUserRole })
+                        });
+                        const data = await res.json();
+                        setEditUserLoading(false);
+                        if (res.ok) {
+                          setEditUserSuccess("User updated successfully!");
+                          setTimeout(() => {
+                            setEditUser(null);
+                            setEditUserSuccess("");
+                            // Refresh users
+                            setUsersLoading(true);
+                            fetch("/api/admin-list-users").then(res => res.json()).then(data => {
+                              setUsers(data.users || []);
+                              setUsersLoading(false);
+                            });
+                          }, 1200);
+                        } else {
+                          setEditUserError(data.error || "Failed to update user.");
+                        }
+                      }}
+                    >
+                      <input
+                        type="email"
+                        placeholder="Email"
+                        value={editUserEmail}
+                        onChange={e => setEditUserEmail(e.target.value)}
+                        required
+                        className="border border-neutral-300 rounded-lg px-4 py-3 text-base focus:outline-none focus:ring-2 focus:ring-blue-400"
+                      />
+                      <select
+                        value={editUserRole}
+                        onChange={e => setEditUserRole(e.target.value)}
+                        className="border border-neutral-300 rounded-lg px-4 py-3 text-base focus:outline-none focus:ring-2 focus:ring-blue-400"
+                      >
+                        <option value="admin">Admin</option>
+                        <option value="class_teacher">Class Teacher</option>
+                        <option value="subject_teacher">Subject Teacher</option>
+                      </select>
+                      {editUserError && <div className="text-red-600 text-sm text-center">{editUserError}</div>}
+                      {editUserSuccess && <div className="text-green-600 text-sm text-center">{editUserSuccess}</div>}
+                      <button
+                        type="submit"
+                        className="w-full bg-gradient-to-r from-blue-500 to-blue-400 text-white font-semibold py-3 rounded-lg shadow hover:from-blue-600 hover:to-blue-500 transition-all"
+                        disabled={editUserLoading}
+                      >
+                        {editUserLoading ? "Saving..." : "Save Changes"}
+                      </button>
+                    </form>
+                  </div>
+                </div>
+              )}
+              {/* Delete User Modal */}
+              {deleteUser && (
+                <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+                  <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-8 relative">
+                    <button
+                      onClick={() => setDeleteUser(null)}
+                      className="absolute top-4 right-4 text-neutral-400 hover:text-neutral-700"
+                    >
+                      <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </button>
+                    <h2 className="text-2xl font-bold mb-6 text-center text-red-700">Delete User</h2>
+                    <p className="mb-6 text-center text-neutral-700">Are you sure you want to delete <span className="font-semibold">{deleteUser.email}</span>?</p>
+                    {deleteUserError && <div className="text-red-600 text-sm text-center mb-2">{deleteUserError}</div>}
+                    <div className="flex gap-4 justify-center">
+                      <button
+                        className="px-6 py-2 rounded bg-neutral-200 text-neutral-700 hover:bg-neutral-300 font-semibold"
+                        onClick={() => setDeleteUser(null)}
+                      >Cancel</button>
+                      <button
+                        className="px-6 py-2 rounded bg-red-500 text-white hover:bg-red-600 font-semibold"
+                        disabled={deleteUserLoading}
+                        onClick={async () => {
+                          setDeleteUserLoading(true);
+                          setDeleteUserError("");
+                          const res = await fetch("/api/admin-delete-user", {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({ id: deleteUser.id })
+                          });
+                          const data = await res.json();
+                          setDeleteUserLoading(false);
+                          if (res.ok) {
+                            setDeleteUser(null);
+                            // Refresh users
+                            setUsersLoading(true);
+                            fetch("/api/admin-list-users").then(res => res.json()).then(data => {
+                              setUsers(data.users || []);
+                              setUsersLoading(false);
+                            });
+                          } else {
+                            setDeleteUserError(data.error || "Failed to delete user.");
+                          }
+                        }}
+                      >
+                        {deleteUserLoading ? "Deleting..." : "Delete"}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
         </main>
       </div>
 
@@ -1683,6 +1936,86 @@ export default function AdminDashboard() {
                 className="px-4 py-2 rounded-lg bg-orange-600 text-white font-semibold shadow hover:bg-orange-700 transition-colors"
               >
                 Add Student
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* User Modal */}
+      {showUserModal && (
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-8 relative">
+            <button
+              onClick={() => setShowUserModal(false)}
+              className="absolute top-4 right-4 text-neutral-400 hover:text-neutral-700"
+            >
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+            <h2 className="text-2xl font-bold mb-6 text-center text-green-700">Add New User</h2>
+            <form
+              className="flex flex-col gap-4"
+              onSubmit={async (e) => {
+                e.preventDefault();
+                setUserLoading(true);
+                setUserError("");
+                setUserSuccess("");
+                const res = await fetch("/api/admin-create-user", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ email: userEmail, password: userPassword, role: userRole })
+                });
+                const data = await res.json();
+                setUserLoading(false);
+                if (res.ok) {
+                  setUserSuccess("User created successfully!");
+                  setUserEmail("");
+                  setUserPassword("");
+                  setUserRole("class_teacher");
+                  setTimeout(() => {
+                    setShowUserModal(false);
+                    setUserSuccess("");
+                  }, 1200);
+                } else {
+                  setUserError(data.error || "Failed to create user.");
+                }
+              }}
+            >
+              <input
+                type="email"
+                placeholder="Email"
+                value={userEmail}
+                onChange={e => setUserEmail(e.target.value)}
+                required
+                className="border border-neutral-300 rounded-lg px-4 py-3 text-base focus:outline-none focus:ring-2 focus:ring-green-400"
+              />
+              <input
+                type="password"
+                placeholder="Password"
+                value={userPassword}
+                onChange={e => setUserPassword(e.target.value)}
+                required
+                className="border border-neutral-300 rounded-lg px-4 py-3 text-base focus:outline-none focus:ring-2 focus:ring-green-400"
+              />
+              <select
+                value={userRole}
+                onChange={e => setUserRole(e.target.value)}
+                className="border border-neutral-300 rounded-lg px-4 py-3 text-base focus:outline-none focus:ring-2 focus:ring-green-400"
+              >
+                <option value="admin">Admin</option>
+                <option value="class_teacher">Class Teacher</option>
+                <option value="subject_teacher">Subject Teacher</option>
+              </select>
+              {userError && <div className="text-red-600 text-sm text-center">{userError}</div>}
+              {userSuccess && <div className="text-green-600 text-sm text-center">{userSuccess}</div>}
+              <button
+                type="submit"
+                className="w-full bg-gradient-to-r from-green-500 to-green-400 text-white font-semibold py-3 rounded-lg shadow hover:from-green-600 hover:to-green-500 transition-all"
+                disabled={userLoading}
+              >
+                {userLoading ? "Adding..." : "Add User"}
               </button>
             </form>
           </div>
