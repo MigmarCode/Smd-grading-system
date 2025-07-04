@@ -43,19 +43,19 @@ export default function Home() {
                     onClick={() => router.push("/admin/login")}
                     className="w-full flex items-center justify-center gap-2 rounded-lg bg-gradient-to-r from-yellow-500 to-yellow-400 text-white text-lg font-semibold py-3 px-6 text-center shadow-lg hover:from-yellow-600 hover:to-yellow-500 active:scale-95 transition-all duration-150 focus:outline-none focus:ring-2 focus:ring-yellow-400 focus:ring-offset-2"
                   >
-                    Administrator Access Only
+                    Administrator Access
                   </button>
                   <button
                     onClick={() => router.push("/teacher/login")}
                     className="w-full flex items-center justify-center gap-2 rounded-lg border-2 border-blue-400 bg-white text-blue-700 text-lg font-semibold py-3 px-6 text-center shadow hover:bg-blue-50 active:scale-95 transition-all duration-150 focus:outline-none focus:ring-2 focus:ring-blue-200 focus:ring-offset-2"
                   >
-                    Class Teachers Access Only
+                    Class Teacher Access
                   </button>
                   <button
                     onClick={() => router.push("/subject-teacher/login")}
                     className="w-full flex items-center justify-center gap-2 rounded-lg border-2 border-green-400 bg-white text-green-700 text-lg font-semibold py-3 px-6 text-center shadow hover:bg-green-50 active:scale-95 transition-all duration-150 focus:outline-none focus:ring-2 focus:ring-green-200 focus:ring-offset-2"
                   >
-                    Subjects Teachers Access Only
+                    Subject Teacher Access
                   </button>
                 </div>
               </div>
