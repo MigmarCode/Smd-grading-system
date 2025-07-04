@@ -1,5 +1,5 @@
 import { NextApiRequest, NextApiResponse } from 'next';
-import { supabase } from '../../lib/supabase';
+import { supabase } from "../../lib/supabaseClient";
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   try {
@@ -21,18 +21,19 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
       case 'POST':
         // Create new subject
-        const { name } = req.body;
+        const { name, code } = req.body;
         if (!name) {
           return res.status(400).json({ error: 'Name is required' });
         }
-        
-        const code = name.toUpperCase().replace(/\s+/g, '_');
+        if (!code) {
+          return res.status(400).json({ error: 'Code is required' });
+        }
         
         const { data: newSubject, error: createError } = await supabase
           .from('subjects')
           .insert({
             name,
-            code
+            code: code.toUpperCase()
           })
           .select()
           .single();
@@ -51,18 +52,19 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
       case 'PUT':
         // Update existing subject
-        const { id, name: updateName } = req.body;
+        const { id, name: updateName, code: updateCode } = req.body;
         if (!id || !updateName) {
           return res.status(400).json({ error: 'ID and name are required' });
         }
-        
-        const updateCode = updateName.toUpperCase().replace(/\s+/g, '_');
+        if (!updateCode) {
+          return res.status(400).json({ error: 'Code is required' });
+        }
         
         const { data: updatedSubject, error: updateError } = await supabase
           .from('subjects')
           .update({
             name: updateName,
-            code: updateCode
+            code: updateCode.toUpperCase()
           })
           .eq('id', id)
           .select()

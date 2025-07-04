@@ -2,7 +2,13 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Building2 } from "lucide-react";
-import { supabase } from "@/lib/supabase";
+import { supabase } from "@/lib/supabaseClient";
+import jsPDF from "jspdf";
+import html2canvas from "html2canvas";
+import StudentResultSheet from "../../components/StudentResultSheet";
+import { useUser } from '@supabase/auth-helpers-react';
+import { useSession } from '@supabase/auth-helpers-react';
+import type { User } from '@supabase/supabase-js';
 
 // SVG icons as functional components
 function TeacherIcon(props: React.SVGProps<SVGSVGElement>) {
@@ -104,44 +110,41 @@ const navigation = [
   { name: 'Users', id: 'users' as const, icon: SettingsIcon },
 ];
 
+// Add a function to generate a random password
+function generateRandomPassword(length = 12) {
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*()_+-=';
+  let password = '';
+  for (let i = 0; i < length; i++) {
+    password += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return password;
+}
+
 export default function AdminDashboard() {
-  // Mock role selector
-  const [role, setRole] = useState<'admin' | 'teacher'>("admin");
-  const [fullName, setFullName] = useState("Demo User");
+  // All useState hooks (already at the top, keep them here)
+  const [loading, setLoading] = useState(true);
+  const [user, setUser] = useState<User | null>(null);
   const router = useRouter();
 
-  // Mobile menu state
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-
-  // Active section state
-  const [activeSection, setActiveSection] = useState<'dashboard' | 'classes' | 'subjects' | 'teachers' | 'students' | 'users'>('dashboard');
-
-  // Classes: use API
+  // All other useState hooks for dashboard
+  const [role, setRole] = useState<'admin' | 'teacher'>('admin');
+  const [fullName, setFullName] = useState('Demo User');
+  const [activeSection, setActiveSection] = useState<'dashboard' | 'classes' | 'subjects' | 'teachers' | 'students' | 'users' | 'grades'>('dashboard');
   const [classes, setClasses] = useState<{ id: number; name: string; section: string; subjects?: string[] }[]>([]);
   const [classesLoading, setClassesLoading] = useState(true);
   const [classesError, setClassesError] = useState<string | null>(null);
-
-  // Subjects: use API
   const [subjects, setSubjects] = useState<any[]>([]);
   const [subjectsLoading, setSubjectsLoading] = useState(true);
   const [subjectsError, setSubjectsError] = useState<string | null>(null);
-
-  // Teachers: use API
   const [teachers, setTeachers] = useState<any[]>([]);
   const [teachersLoading, setTeachersLoading] = useState(true);
   const [teachersError, setTeachersError] = useState<string | null>(null);
-
-  // Students: use API
   const [students, setStudents] = useState<any[]>([]);
   const [studentsLoading, setStudentsLoading] = useState(true);
   const [studentsError, setStudentsError] = useState<string | null>(null);
-
-  // Results: use API
   const [results, setResults] = useState<any[]>([]);
   const [resultsLoading, setResultsLoading] = useState(true);
   const [resultsError, setResultsError] = useState<string | null>(null);
-
-  // Student Type Statistics: use API
   const [studentStats, setStudentStats] = useState({
     monkStudents: 0,
     nunStudents: 0,
@@ -151,13 +154,13 @@ export default function AdminDashboard() {
   });
   const [studentStatsLoading, setStudentStatsLoading] = useState(true);
   const [studentStatsError, setStudentStatsError] = useState<string | null>(null);
-
-  // Modal and form states - simplified for add only
   const [showClassModal, setShowClassModal] = useState(false);
   const [className, setClassName] = useState("");
   const [section, setSection] = useState("");
   const [showSubjectModal, setShowSubjectModal] = useState(false);
   const [subjectName, setSubjectName] = useState("");
+  const [subjectCode, setSubjectCode] = useState("");
+  const [editingTeacher, setEditingTeacher] = useState<any>(null);
   const [showTeacherModal, setShowTeacherModal] = useState(false);
   const [teacherFirstName, setTeacherFirstName] = useState("");
   const [teacherLastName, setTeacherLastName] = useState("");
@@ -170,45 +173,45 @@ export default function AdminDashboard() {
   const [studentClassId, setStudentClassId] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [currentUser, setCurrentUser] = useState<string | null>(null);
-
-  // Edit states
   const [editingClass, setEditingClass] = useState<any>(null);
   const [editingSubject, setEditingSubject] = useState<any>(null);
-  const [editingTeacher, setEditingTeacher] = useState<any>(null);
   const [editingStudent, setEditingStudent] = useState<any>(null);
   const [selectedSubjects, setSelectedSubjects] = useState<string[]>([]);
   const [classSubjects, setClassSubjects] = useState<any[]>([]);
-
-  // Accordion state for student panel
   const [expandedClasses, setExpandedClasses] = useState<Set<string | number>>(new Set());
+  const [showUserModal, setShowUserModal] = useState(false);
+  const [userEmail, setUserEmail] = useState("");
+  const [userPassword, setUserPassword] = useState("");
+  const [userRole, setUserRole] = useState("class_teacher");
+  const [userLoading, setUserLoading] = useState(false);
+  const [userError, setUserError] = useState("");
+  const [userSuccess, setUserSuccess] = useState("");
+  const [users, setUsers] = useState<any[]>([]);
+  const [usersLoading, setUsersLoading] = useState(false);
+  const [usersError, setUsersError] = useState("");
+  const [editUser, setEditUser] = useState<any>(null);
+  const [editUserEmail, setEditUserEmail] = useState("");
+  const [editUserRole, setEditUserRole] = useState("");
+  const [editUserLoading, setEditUserLoading] = useState(false);
+  const [editUserError, setEditUserError] = useState("");
+  const [editUserSuccess, setEditUserSuccess] = useState("");
+  const [deleteUser, setDeleteUser] = useState<any>(null);
+  const [deleteUserLoading, setDeleteUserLoading] = useState(false);
+  const [deleteUserError, setDeleteUserError] = useState("");
+  const [userFirstName, setUserFirstName] = useState("");
+  const [userLastName, setUserLastName] = useState("");
+  const [editUserFirstName, setEditUserFirstName] = useState("");
+  const [editUserLastName, setEditUserLastName] = useState("");
+  const [gradesNew, setGradesNew] = useState<any[]>([]);
+  const [showResultModal, setShowResultModal] = useState(false);
+  const [selectedResultStudent, setSelectedResultStudent] = useState<any>(null);
+  const [modalSubjects, setModalSubjects] = useState<any[]>([]);
+  const [modalGrades, setModalGrades] = useState<any[]>([]);
+  const [modalLoading, setModalLoading] = useState(false);
+  const [showUserPassword, setShowUserPassword] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
-  // Toggle accordion for classes
-  const toggleClass = (classId: string | number) => {
-    const newExpanded = new Set(expandedClasses);
-    if (newExpanded.has(classId)) {
-      newExpanded.delete(classId);
-    } else {
-      newExpanded.add(classId);
-    }
-    setExpandedClasses(newExpanded);
-  };
-
-  // Organize students by class
-  const studentsByClass = classes.map(cls => ({
-    ...cls,
-    students: students.filter(student => String(student.class_id) === String(cls.id))
-  }));
-
-  // Students without class
-  const studentsWithoutClass = students.filter(student => !student.class_id);
-
-  // Debug logging
-  console.log('=== DEBUG INFO ===');
-  console.log('Classes:', classes);
-  console.log('Students:', students);
-  console.log('Students by class:', studentsByClass);
-
-  // Fetch classes from API on mount
+   // Fetch classes from API on mount
   useEffect(() => {
     setClassesLoading(true);
     fetch("/api/classes")
@@ -283,6 +286,24 @@ export default function AdminDashboard() {
       });
   }, []);
 
+  // All useEffect hooks (move them here, before any return statement)
+  useEffect(() => {
+    const getUser = async () => {
+      const { data, error } = await supabase.auth.getUser();
+      if (error || !data?.user) {
+        router.replace("/admin/login");
+        return;
+      }
+      if (data.user.user_metadata?.role !== "admin") {
+        router.replace("/not-authorized");
+        return;
+      }
+      setUser(data.user);
+      setLoading(false);
+    };
+    getUser();
+  }, [router]);
+
   useEffect(() => {
     const fetchUser = async () => {
       const { data: { user } } = await supabase.auth.getUser();
@@ -302,8 +323,8 @@ export default function AdminDashboard() {
   useEffect(() => {
     const checkRole = async () => {
       const { data: { user } } = await supabase.auth.getUser();
-      const role = user?.user_metadata?.role;
-      if (role !== "admin") {
+      const userRole = user?.user_metadata?.role;
+      if (userRole !== "admin") {
         router.replace("/not-authorized");
       }
     };
@@ -380,24 +401,25 @@ export default function AdminDashboard() {
       setError("Subject name is required");
       return;
     }
-    
+    if (!subjectCode.trim()) {
+      setError("Subject code is required");
+      return;
+    }
     try {
       const url = editingSubject ? `/api/subjects?id=${editingSubject.id}` : '/api/subjects';
       const method = editingSubject ? 'PUT' : 'POST';
-      
       const requestBody = editingSubject 
-        ? { id: editingSubject.id, name: subjectName }
-        : { name: subjectName };
-      
+        ? { id: editingSubject.id, name: subjectName, code: subjectCode }
+        : { name: subjectName, code: subjectCode };
       const response = await fetch(url, {
         method,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(requestBody)
       });
-      
       if (response.ok) {
         setShowSubjectModal(false);
         setSubjectName("");
+        setSubjectCode("");
         setEditingSubject(null);
         setError(null);
         // Refresh subjects data
@@ -543,16 +565,17 @@ export default function AdminDashboard() {
         setClasses(updatedClasses);
       } else {
         const errorData = await response.json();
-        alert(errorData.error || "Failed to delete class");
+        setError(errorData.error || "Failed to delete class");
       }
     } catch (err) {
-      alert("Failed to delete class");
+      setError("Failed to delete class");
     }
   };
 
   const handleEditSubject = (subject: any) => {
     setEditingSubject(subject);
     setSubjectName(subject.name);
+    setSubjectCode(subject.code || "");
     setShowSubjectModal(true);
   };
 
@@ -570,10 +593,10 @@ export default function AdminDashboard() {
         setSubjects(updatedSubjects);
       } else {
         const errorData = await response.json();
-        alert(errorData.error || "Failed to delete subject");
+        setError(errorData.error || "Failed to delete subject");
       }
     } catch (err) {
-      alert("Failed to delete subject");
+      setError("Failed to delete subject");
     }
   };
 
@@ -599,10 +622,10 @@ export default function AdminDashboard() {
         setTeachers(updatedTeachers);
       } else {
         const errorData = await response.json();
-        alert(errorData.error || "Failed to delete teacher");
+        setError(errorData.error || "Failed to delete teacher");
       }
     } catch (err) {
-      alert("Failed to delete teacher");
+      setError("Failed to delete teacher");
     }
   };
 
@@ -633,10 +656,10 @@ export default function AdminDashboard() {
         setStudentStats(updatedStats);
       } else {
         const errorData = await response.json();
-        alert(errorData.error || "Failed to delete student");
+        setError(errorData.error || "Failed to delete student");
       }
     } catch (err) {
-      alert("Failed to delete student");
+      setError("Failed to delete student");
     }
   };
 
@@ -726,20 +749,6 @@ export default function AdminDashboard() {
     },
   ];
 
-  // Add state for user modal
-  const [showUserModal, setShowUserModal] = useState(false);
-  const [userEmail, setUserEmail] = useState("");
-  const [userPassword, setUserPassword] = useState("");
-  const [userRole, setUserRole] = useState("class_teacher");
-  const [userLoading, setUserLoading] = useState(false);
-  const [userError, setUserError] = useState("");
-  const [userSuccess, setUserSuccess] = useState("");
-
-  // Add state for user list
-  const [users, setUsers] = useState<any[]>([]);
-  const [usersLoading, setUsersLoading] = useState(false);
-  const [usersError, setUsersError] = useState("");
-
   // Fetch users when Users section is active
   useEffect(() => {
     if (activeSection === 'users') {
@@ -758,24 +767,37 @@ export default function AdminDashboard() {
     }
   }, [activeSection]);
 
-  // Add state for editing and deleting users
-  const [editUser, setEditUser] = useState<any>(null);
-  const [editUserEmail, setEditUserEmail] = useState("");
-  const [editUserRole, setEditUserRole] = useState("");
-  const [editUserLoading, setEditUserLoading] = useState(false);
-  const [editUserError, setEditUserError] = useState("");
-  const [editUserSuccess, setEditUserSuccess] = useState("");
-  const [deleteUser, setDeleteUser] = useState<any>(null);
-  const [deleteUserLoading, setDeleteUserLoading] = useState(false);
-  const [deleteUserError, setDeleteUserError] = useState("");
+  // Now, after all hooks, you can have:
+  if (loading) return <div>Loading...</div>;
+  if (!user) return null;
 
-  // Add state for first and last name in Add User modal
-  const [userFirstName, setUserFirstName] = useState("");
-  const [userLastName, setUserLastName] = useState("");
+  // Toggle accordion for classes
+  const toggleClass = (classId: string | number) => {
+    const newExpanded = new Set(expandedClasses);
+    if (newExpanded.has(classId)) {
+      newExpanded.delete(classId);
+    } else {
+      newExpanded.add(classId);
+    }
+    setExpandedClasses(newExpanded);
+  };
 
-  // Add state for first and last name in Edit User modal
-  const [editUserFirstName, setEditUserFirstName] = useState("");
-  const [editUserLastName, setEditUserLastName] = useState("");
+  // Organize students by class
+  const studentsByClass = classes.map(cls => ({
+    ...cls,
+    students: students.filter(student => String(student.class_id) === String(cls.id))
+  }));
+
+  // Students without class
+  const studentsWithoutClass = students.filter(student => !student.class_id);
+
+  // Debug logging
+  console.log('=== DEBUG INFO ===');
+  console.log('Classes:', classes);
+  console.log('Students:', students);
+  console.log('Students by class:', studentsByClass);
+
+ 
 
   return (
     <div className="min-h-screen" style={{ backgroundColor: '#fffef2' }}>
@@ -849,6 +871,7 @@ export default function AdminDashboard() {
                   {activeSection === 'teachers' && 'Class Teacher Management'}
                   {activeSection === 'students' && 'Students Management'}
                   {activeSection === 'users' && 'Users Management'}
+                  {activeSection === 'grades' && 'Grades Management'}
                 </h1>
                 <p className="text-sm lg:text-base text-neutral-600 hidden sm:block">
                   {activeSection === 'dashboard' && 'Welcome!'}
@@ -857,6 +880,7 @@ export default function AdminDashboard() {
                   {activeSection === 'teachers' && 'Manage and organize your class teachers.'}
                   {activeSection === 'students' && 'Manage and organize your school students.'}
                   {activeSection === 'users' && 'Manage and organize your users.'}
+                  {activeSection === 'grades' && 'Manage and organize your grades.'}
                 </p>
               </div>
               
@@ -1019,6 +1043,22 @@ export default function AdminDashboard() {
                           <div>
                             <h4 className="text-base lg:text-lg font-semibold text-green-900 group-hover:text-green-800 transition-colors">Add User</h4>
                             <p className="text-xs lg:text-sm text-green-700 group-hover:text-green-600 transition-colors">Create new user</p>
+                          </div>
+                        </div>
+                      </button>
+
+                      {/* View Grades Quick Action card */}
+                      <button
+                        onClick={() => setActiveSection('grades')}
+                        className="group relative bg-gradient-to-br from-pink-50 to-pink-100 border border-pink-200 rounded-xl p-4 lg:p-6 hover:from-pink-100 hover:to-pink-200 hover:border-pink-300 transition-all duration-300 transform hover:-translate-y-1 hover:shadow-lg"
+                      >
+                        <div className="flex flex-col items-center text-center space-y-3 lg:space-y-4">
+                          <div className="w-12 h-12 lg:w-16 lg:h-16 bg-gradient-to-br from-pink-500 to-pink-600 rounded-2xl flex items-center justify-center group-hover:scale-110 transition-transform duration-300 shadow-lg">
+                            <svg className="text-white w-6 h-6 lg:w-8 lg:h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17v-2a4 4 0 018 0v2m-4-4a4 4 0 100-8 4 4 0 000 8zm-6 8v-2a4 4 0 014-4h4a4 4 0 014 4v2" /></svg>
+                          </div>
+                          <div>
+                            <h4 className="text-base lg:text-lg font-semibold text-pink-900 group-hover:text-pink-800 transition-colors">View Grades</h4>
+                            <p className="text-xs lg:text-sm text-pink-700 group-hover:text-pink-600 transition-colors">See all student grades</p>
                           </div>
                         </div>
                       </button>
@@ -1687,6 +1727,109 @@ export default function AdminDashboard() {
               )}
             </div>
           )}
+
+          {/* View Grades Section */}
+          {activeSection === 'grades' && (
+            <div className="p-4 lg:p-6">
+              <div className="flex justify-between items-center mb-6">
+                <h1 className="text-2xl lg:text-3xl font-bold text-gray-900">All Submitted Grades</h1>
+              </div>
+              <div className="bg-white rounded-lg shadow overflow-hidden">
+                {resultsLoading ? (
+                  <div className="flex items-center justify-center py-8 px-6">
+                    <div className="flex items-center space-x-3">
+                      <div className="w-6 h-6 border-2 border-pink-500 border-t-transparent rounded-full animate-spin"></div>
+                      <span className="text-neutral-600 font-medium">Loading grades...</span>
+                    </div>
+                  </div>
+                ) : resultsError ? (
+                  <div className="text-center py-8 text-red-600 font-medium">{resultsError}</div>
+                ) : (
+                  <div className="space-y-4 pt-6 pr-6 pb-6 pl-0">
+                    {/* Classes with students and grades */}
+                    {classes.map((cls) => {
+                      const studentsInClass = students.filter(s => String(s.class_id) === String(cls.id));
+                      // Debug: Log subjects assigned to this class, even if empty
+                      console.log('DEBUG: cls.subjects:', cls.subjects, 'for class:', cls.name, cls.id);
+                      console.log('DEBUG: subjects array:', subjects);
+                      return (
+                        <div key={cls.id} className="border border-neutral-200 rounded-lg overflow-hidden">
+                          <button
+                            onClick={() => toggleClass(cls.id)}
+                            className="w-full px-4 py-3 transition-colors duration-200 flex items-center justify-between"
+                            style={{ backgroundColor: '#fcf7f8' }}
+                          >
+                            <div className="flex items-center space-x-3">
+                              <ClassIcon className="w-5 h-5 text-blue-600" />
+                              <div>
+                                <h4 className="font-semibold text-blue-900">
+                                  {cls.name}{cls.section ? ` - ${cls.section}` : ""}
+                                </h4>
+                                <p className="text-sm text-blue-700">
+                                  {studentsInClass.length} student{studentsInClass.length !== 1 ? 's' : ''}
+                                </p>
+                              </div>
+                            </div>
+                          </button>
+                          {expandedClasses.has(cls.id) && (
+                            <div className="bg-white border-t border-neutral-200">
+                              {studentsInClass.length > 0 ? (
+                                <div className="p-4 space-y-2">
+                                  {/* Subject-wise marks table from grades_new */}
+                                  <div className="overflow-x-auto mb-6">
+                                    <table className="min-w-full border border-slate-200 rounded">
+                                      <thead>
+                                        <tr className="bg-slate-100">
+                                          <th className="px-4 py-2 text-left font-semibold text-slate-700 border border-slate-200">Student</th>
+                                          <th className="px-4 py-2 text-left font-semibold text-slate-700 border border-slate-200">Roll No.</th>
+                                          <th className="px-4 py-2 text-left font-semibold text-slate-700 border border-slate-200">Admission No.</th>
+                                        </tr>
+                                      </thead>
+                                      <tbody>
+                                        {studentsInClass.map(student => (
+                                          <tr key={student.id}>
+                                            <td className="px-4 py-2 text-left border border-slate-200 font-medium text-slate-900">
+                                              <button
+                                                className="text-blue-700 underline hover:text-blue-900 focus:outline-none"
+                                                onClick={async () => {
+                                                  setSelectedResultStudent(student);
+                                                  setShowResultModal(true);
+                                                  setModalLoading(true);
+                                                  // Fetch class-specific subjects
+                                                  const subjectsRes = await fetch(`/api/class-subjects?class_id=${student.class_id}`);
+                                                  const subjectsData = await subjectsRes.json();
+                                                  setModalSubjects(subjectsData);
+                                                  // Fetch class-specific grades
+                                                  const gradesRes = await fetch(`/api/grades-new?class_id=${student.class_id}`);
+                                                  const gradesData = await gradesRes.json();
+                                                  setModalGrades(gradesData.grades || []);
+                                                  setModalLoading(false);
+                                                }}
+                                              >
+                                                {student.first_name} {student.last_name}
+                                              </button>
+                                            </td>
+                                            <td className="px-4 py-2 text-left border border-slate-200">{student.roll_no || student.roll_number || '-'}</td>
+                                            <td className="px-4 py-2 text-left border border-slate-200">{student.student_id}</td>
+                                          </tr>
+                                        ))}
+                                      </tbody>
+                                    </table>
+                                  </div>
+                                </div>
+                              ) : (
+                                <div className="p-4 text-center text-neutral-500">No students assigned to this class</div>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
         </main>
       </div>
 
@@ -1788,6 +1931,7 @@ export default function AdminDashboard() {
               onClick={() => {
                 setShowSubjectModal(false);
                 setSubjectName("");
+                setSubjectCode("");
                 setEditingSubject(null);
                 setError(null);
               }}
@@ -1808,6 +1952,17 @@ export default function AdminDashboard() {
                   value={subjectName}
                   onChange={e => setSubjectName(e.target.value)}
                   placeholder="e.g., Mathematics, English"
+                  className="w-full border border-neutral-300 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-purple-200"
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Subject Code</label>
+                <input
+                  type="text"
+                  value={subjectCode}
+                  onChange={e => setSubjectCode(e.target.value)}
+                  placeholder="e.g., MATH, ENG, SCI"
                   className="w-full border border-neutral-300 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-purple-200"
                   required
                 />
@@ -2046,14 +2201,32 @@ export default function AdminDashboard() {
                 required
                 className="border border-neutral-300 rounded-lg px-4 py-3 text-base focus:outline-none focus:ring-2 focus:ring-green-400"
               />
-              <input
-                type="password"
-                placeholder="Password"
-                value={userPassword}
-                onChange={e => setUserPassword(e.target.value)}
-                required
-                className="border border-neutral-300 rounded-lg px-4 py-3 text-base focus:outline-none focus:ring-2 focus:ring-green-400"
-              />
+              <div className="relative flex items-center">
+                <input
+                  type={showUserPassword ? "text" : "password"}
+                  placeholder="Password"
+                  value={userPassword}
+                  onChange={e => setUserPassword(e.target.value)}
+                  required
+                  className="border border-neutral-300 rounded-lg px-4 py-3 text-base focus:outline-none focus:ring-2 focus:ring-green-400 pr-12"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowUserPassword(v => !v)}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-green-700 hover:text-green-900 text-xs font-semibold px-2 py-1 rounded"
+                  tabIndex={-1}
+                  aria-label={showUserPassword ? 'Hide password' : 'Show password'}
+                >
+                  {showUserPassword ? 'Hide' : 'Show'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setUserPassword(generateRandomPassword())}
+                  className="ml-2 px-3 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 text-xs font-semibold"
+                >
+                  Generate Password
+                </button>
+              </div>
               <select
                 value={userRole}
                 onChange={e => setUserRole(e.target.value)}
@@ -2089,6 +2262,35 @@ export default function AdminDashboard() {
                 {userLoading ? "Adding..." : "Add User"}
               </button>
             </form>
+          </div>
+        </div>
+      )}
+
+      {showResultModal && selectedResultStudent && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full p-8 relative">
+            <button
+              onClick={() => setShowResultModal(false)}
+              className="absolute top-4 right-4 text-neutral-400 hover:text-neutral-700"
+            >
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+            <h2 className="text-2xl font-bold mb-6 text-center text-blue-700">Student Result Sheet</h2>
+            {modalLoading ? (
+              <div className="text-center py-8 text-blue-600 font-semibold">Loading result sheet...</div>
+            ) : (
+              <StudentResultSheet
+                student={selectedResultStudent}
+                subjects={modalSubjects}
+                grades={modalGrades}
+                teachers={teachers}
+                classInfo={classes.find(c => String(c.id) === String(selectedResultStudent.class_id))}
+                term={undefined}
+                onClose={() => setShowResultModal(false)}
+              />
+            )}
           </div>
         </div>
       )}

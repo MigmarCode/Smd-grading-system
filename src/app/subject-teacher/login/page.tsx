@@ -1,7 +1,7 @@
 "use client";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { supabase } from "@/lib/supabase";
+import { supabase } from "@/lib/supabaseClient";
 
 export default function SubjectTeacherLogin() {
   const router = useRouter();
@@ -19,7 +19,7 @@ export default function SubjectTeacherLogin() {
     if (error) {
       setError(error.message);
     } else {
-      router.push("/subject-teacher/dashboard");
+      router.push("/grades-new");
     }
   };
 

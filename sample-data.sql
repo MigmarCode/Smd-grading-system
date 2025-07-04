@@ -46,7 +46,7 @@ INSERT INTO grades (
   remark_english, remark_other
 )
 SELECT 
-  s.id as student_id,
+  s.student_id as student_id,
   t.id as teacher_id,
   s.class_id,
   'Term 1' as term,
@@ -120,4 +120,10 @@ SELECT 'Teachers' as table_name, COUNT(*) as count FROM teachers
 UNION ALL
 SELECT 'Students' as table_name, COUNT(*) as count FROM students
 UNION ALL
-SELECT 'Grades' as table_name, COUNT(*) as count FROM grades; 
+SELECT 'Grades' as table_name, COUNT(*) as count FROM grades;
+
+-- Step 1: Get the List of Subjects for Class 7B
+SELECT s.name
+FROM class_subjects cs
+JOIN subjects s ON cs.subject_id = s.id
+WHERE cs.class_id = '7B';  -- Replace '7B' with the actual class_id for 7B 

@@ -61,7 +61,8 @@ CREATE TABLE IF NOT EXISTS grades (
     created_at TEXT DEFAULT (datetime('now')),
     FOREIGN KEY (student_id) REFERENCES students(student_id),
     FOREIGN KEY (teacher_id) REFERENCES teachers(id),
-    FOREIGN KEY (class_id) REFERENCES classes(id)
+    FOREIGN KEY (class_id) REFERENCES classes(id),
+    UNIQUE(student_id, class_id, term)
 );
 
 -- Create class_subjects table for many-to-many relationship

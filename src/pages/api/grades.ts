@@ -1,5 +1,5 @@
 import { NextApiRequest, NextApiResponse } from 'next';
-import { supabase } from '../../lib/supabase';
+import { supabase } from "../../lib/supabaseClient";
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   try {
@@ -78,52 +78,131 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           return res.status(400).json({ error: 'Grades array is required' });
         }
 
-        // Prepare the data for bulk insert
-        const gradesToInsert = gradeEntries.map(gradeEntry => {
-          const {
-            student_id,
-            teacher_id,
-            class_id,
-            term,
-            mathematics,
-            science,
-            english,
-            social_studies,
-            computer_science,
-            physical_education,
-            extra_curricular,
-            total_marks,
-            percentage,
-            grade,
-            remark_english,
-            remark_other
-          } = gradeEntry;
+        // Prepare the data for bulk insert/update
+        const gradesToInsert = gradeEntries.map(gradeEntry => ({
+          ...gradeEntry
+        }));
 
-          return {
-            student_id,
-            teacher_id,
-            class_id,
-            term,
-            mathematics: mathematics || 0,
-            science: science || 0,
-            english: english || 0,
-            social_studies: social_studies || 0,
-            computer_science: computer_science || 0,
-            physical_education: physical_education || 0,
-            extra_curricular: extra_curricular || 0,
-            total_marks: total_marks || 0,
-            percentage: percentage || 0,
-            grade: grade || '',
-            remark_english: remark_english || '',
-            remark_other: remark_other || ''
-          };
-        });
+        // For each grade entry, we need to merge with existing data if it exists
+        const finalGradesToInsert = [];
+        
+        for (const gradeEntry of gradesToInsert) {
+          // Check if a grade record already exists for this student, class, and term
+          const { data: existingGrade } = await supabase
+            .from('grades')
+            .select('*')
+            .eq('student_id', gradeEntry.student_id)
+            .eq('class_id', gradeEntry.class_id)
+            .eq('term', gradeEntry.term)
+            .single();
+
+          if (existingGrade) {
+            // Merge with existing data, preserving existing subject grades and adding new ones
+            const mergedGrade = {
+              ...existingGrade,
+              teacher_id: gradeEntry.teacher_id, // Update teacher
+              // Preserve existing subject grades and add new ones
+              tib1: gradeEntry.tib1 > 0 ? gradeEntry.tib1 : existingGrade.tib1 || 0,
+              tib2: gradeEntry.tib2 > 0 ? gradeEntry.tib2 : existingGrade.tib2 || 0,
+              com: gradeEntry.com > 0 ? gradeEntry.com : existingGrade.com || 0,
+              eng: gradeEntry.eng > 0 ? gradeEntry.eng : existingGrade.eng || 0,
+              nep: gradeEntry.nep > 0 ? gradeEntry.nep : existingGrade.nep || 0,
+              math: gradeEntry.math > 0 ? gradeEntry.math : existingGrade.math || 0,
+              hea: gradeEntry.hea > 0 ? gradeEntry.hea : existingGrade.hea || 0,
+              sam: gradeEntry.sam > 0 ? gradeEntry.sam : existingGrade.sam || 0,
+              sci: gradeEntry.sci > 0 ? gradeEntry.sci : existingGrade.sci || 0,
+              // Keep old columns for backward compatibility
+              mathematics: existingGrade.mathematics || 0,
+              science: existingGrade.science || 0,
+              english: existingGrade.english || 0,
+              social_studies: existingGrade.social_studies || 0,
+              computer_science: existingGrade.computer_science || 0,
+              physical_education: existingGrade.physical_education || 0,
+              extra_curricular: existingGrade.extra_curricular || 0,
+              // Recalculate total marks and percentage
+              total_marks: 0,
+              percentage: 0
+            };
+            
+            // Calculate new total marks from all subject columns
+            const subjectMarks = [
+              mergedGrade.tib1, mergedGrade.tib2, mergedGrade.com, mergedGrade.eng,
+              mergedGrade.nep, mergedGrade.math, mergedGrade.hea, mergedGrade.sam, mergedGrade.sci,
+              mergedGrade.mathematics, mergedGrade.science, mergedGrade.english,
+              mergedGrade.social_studies, mergedGrade.computer_science,
+              mergedGrade.physical_education, mergedGrade.extra_curricular
+            ];
+            
+            mergedGrade.total_marks = subjectMarks.reduce((sum, mark) => sum + (mark || 0), 0);
+            
+            // Calculate percentage (assuming max marks per subject is 100)
+            const maxPossibleMarks = subjectMarks.length * 100;
+            mergedGrade.percentage = maxPossibleMarks > 0 ? (mergedGrade.total_marks / maxPossibleMarks) * 100 : 0;
+            
+            finalGradesToInsert.push(mergedGrade);
+          } else {
+            // New grade record
+            finalGradesToInsert.push(gradeEntry);
+          }
+        }
 
         // Use upsert to handle duplicates gracefully
-        const { data: insertedGrades, error: insertError } = await supabase
+        let { data: insertedGrades, error: insertError } = await supabase
           .from('grades')
-          .upsert(gradesToInsert, { onConflict: 'student_id,class_id,term' })
+          .upsert(finalGradesToInsert, { onConflict: 'student_id,class_id,term' })
           .select();
+        
+        // Initialize insertedGrades as empty array if null
+        let finalInsertedGrades = insertedGrades || [];
+        
+        // If the constraint doesn't exist, handle it manually
+        if (insertError && insertError.code === '42P10') {
+          console.log('Unique constraint not found, handling conflicts manually...');
+          
+          // For each grade entry, check if it exists and update or insert accordingly
+          const results = [];
+          for (const gradeEntry of finalGradesToInsert) {
+            const { data: existingGrade } = await supabase
+              .from('grades')
+              .select('*')
+              .eq('student_id', gradeEntry.student_id)
+              .eq('class_id', gradeEntry.class_id)
+              .eq('term', gradeEntry.term)
+              .single();
+            
+            if (existingGrade) {
+              // Update existing grade
+              const { data: updatedGrade, error: updateError } = await supabase
+                .from('grades')
+                .update(gradeEntry)
+                .eq('id', existingGrade.id)
+                .select()
+                .single();
+              
+              if (updateError) {
+                console.error('Update error:', updateError);
+                return res.status(500).json({ error: updateError.message });
+              }
+              results.push(updatedGrade);
+            } else {
+              // Insert new grade
+              const { data: newGrade, error: insertError } = await supabase
+                .from('grades')
+                .insert(gradeEntry)
+                .select()
+                .single();
+              
+              if (insertError) {
+                console.error('Insert error:', insertError);
+                return res.status(500).json({ error: insertError.message });
+              }
+              results.push(newGrade);
+            }
+          }
+          
+          finalInsertedGrades = results;
+          insertError = null;
+        }
         
         if (insertError) {
           console.error('Insert grades error:', insertError);
@@ -133,8 +212,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         
         res.status(201).json({ 
           message: 'Grades submitted successfully',
-          count: insertedGrades.length,
-          grades: insertedGrades
+          count: finalInsertedGrades.length,
+          grades: finalInsertedGrades
         });
         break;
 
@@ -145,6 +224,17 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         const { data: updatedGrade, error: updateError } = await supabase
           .from('grades')
           .update({
+            // New subject columns
+            tib1: updateData.tib1 || 0,
+            tib2: updateData.tib2 || 0,
+            com: updateData.com || 0,
+            eng: updateData.eng || 0,
+            nep: updateData.nep || 0,
+            math: updateData.math || 0,
+            hea: updateData.hea || 0,
+            sam: updateData.sam || 0,
+            sci: updateData.sci || 0,
+            // Old columns for backward compatibility
             mathematics: updateData.mathematics || 0,
             science: updateData.science || 0,
             english: updateData.english || 0,
@@ -194,7 +284,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         res.status(405).json({ error: `Method ${req.method} Not Allowed` });
     }
   } catch (error) {
-    console.error('API Error:', error);
+    console.error('API error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 } 
