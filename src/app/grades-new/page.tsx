@@ -123,8 +123,8 @@ export default function GradesNewDashboard() {
               className="px-3 lg:px-4 py-2 text-white rounded-lg hover:bg-red-800 transition-colors duration-200 font-medium flex items-center space-x-1 lg:space-x-2 text-sm lg:text-base"
               style={{ backgroundColor: '#9b2037' }}
               onClick={async () => {
-                // You can implement logout here if needed
-                router.push('/subject-teacher/login');
+                await supabase.auth.signOut();
+                router.push('/');
               }}
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">

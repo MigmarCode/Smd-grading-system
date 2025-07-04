@@ -331,8 +331,9 @@ export default function AdminDashboard() {
     checkRole();
   }, [router]);
 
-  const handleLogout = () => {
-    router.push('/');
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+    router.push("/");
   };
 
   // Form handlers for adding data

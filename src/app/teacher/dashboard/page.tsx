@@ -370,7 +370,7 @@ export default function TeacherDashboard() {
               <button
                 onClick={() => {
                   supabase.auth.signOut();
-                  router.push("/teacher/login");
+                  router.push("/");
                 }}
                 className="px-3 lg:px-4 py-2 text-white rounded-lg hover:bg-red-800 transition-colors duration-200 font-medium flex items-center space-x-1 lg:space-x-2 text-sm lg:text-base"
                 style={{ backgroundColor: '#9b2037' }}
