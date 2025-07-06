@@ -5,6 +5,7 @@ import html2canvas from "html2canvas";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
 import type { User } from '@supabase/supabase-js';
+import StudentGradesTable from '@/components/StudentGradesTable';
 
 export default function TeacherDashboard() {
   const [classes, setClasses] = useState<any[]>([]);
@@ -348,6 +349,59 @@ export default function TeacherDashboard() {
 
   const classStats = calculateClassStats();
 
+  // Calculate totals for each subject
+  const calculateSubjectTotals = () => {
+    const totals: {[subjectId: string]: number} = {};
+    
+    subjects.forEach(subject => {
+      let total = 0;
+      students.forEach(student => {
+        const grades = submittedGrades.find(g => g.student_id === student.id && g.subject_id === subject.id && g.term === selectedTerm);
+        if (grades) {
+          total += grades.marks;
+        } else {
+          // Use existing grades if not edited
+          const existingGrade = getStudentGrade(student.id, subject.id);
+          total += existingGrade || 0;
+        }
+      });
+      totals[subject.id] = total;
+    });
+    
+    return totals;
+  };
+
+  // Helper function to calculate total marks for a student
+  const calculateStudentTotal = (studentId: string) => {
+    let total = 0;
+    subjects.forEach(subject => {
+      const grades = submittedGrades.find(g => g.student_id === studentId && g.subject_id === subject.id && g.term === selectedTerm);
+      if (grades) {
+        total += grades.marks;
+      } else {
+        // Use existing grades if not edited
+        const existingGrade = getStudentGrade(studentId, subject.id);
+        total += existingGrade || 0;
+      }
+    });
+    return total;
+  };
+
+  // Helper function to calculate percentage for a student
+  const calculateStudentPercentage = (studentId: string) => {
+    const total = calculateStudentTotal(studentId);
+    const totalPossible = subjects.length * 100; // Assuming 100 marks per subject
+    return totalPossible > 0 ? Math.round((total / totalPossible) * 100) : 0;
+  };
+
+  // Helper function to determine division based on percentage
+  const getStudentDivision = (percentage: number) => {
+    if (percentage >= 80) return 'First';
+    if (percentage >= 60) return 'Second';
+    if (percentage >= 40) return 'Third';
+    return 'Fail';
+  };
+
   return (
     <div className="min-h-screen" style={{ backgroundColor: '#fffef2' }}>
       {/* Header */}
@@ -421,22 +475,11 @@ export default function TeacherDashboard() {
                 </select>
               </div>
 
-              {/* Action Buttons */}
-              <div className="flex items-end space-x-3">
-                <button
-                  onClick={handlePreviewClassResult}
-                  disabled={!selectedClass || loading}
-                  className="flex-1 px-4 py-3 lg:py-4 bg-blue-600 text-white font-semibold rounded-xl shadow-lg hover:bg-blue-700 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  Preview Results
-                </button>
-                <button
-                  onClick={handleDownloadClassPDF}
-                  disabled={!selectedClass || loading || pdfLoading}
-                  className="flex-1 px-4 py-3 lg:py-4 bg-pink-600 text-white font-semibold rounded-xl shadow-lg hover:bg-pink-700 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {pdfLoading ? "Generating..." : "Download PDF"}
-                </button>
+              {/* Action Buttons - Removed, now in StudentGradesTable */}
+              <div className="flex items-end">
+                <div className="text-sm text-slate-600 italic">
+                  Use the buttons in the grades table below
+                </div>
               </div>
             </div>
           </div>
@@ -467,167 +510,23 @@ export default function TeacherDashboard() {
             </div>
           )}
 
-          {/* Grades Table */}
-          {selectedClass && (
-            <div className="bg-white/70 backdrop-blur-sm rounded-2xl shadow-xl border border-white/20 p-4 lg:p-8">
-              <div className="flex justify-between items-center mb-6">
-                <h3 className="text-xl lg:text-2xl font-bold text-slate-900">Student Grades Overview</h3>
-                <div className="flex space-x-3">
-                  <button
-                    onClick={handlePrint}
-                    className="px-4 py-2 bg-slate-600 text-white rounded-lg hover:bg-slate-700 transition-colors"
-                  >
-                    Print
-                  </button>
-                  <button
-                    onClick={handleDownloadPDF}
-                    className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
-                  >
-                    Download PDF
-                  </button>
-                </div>
-              </div>
 
-              {loading ? (
-                <div className="text-center py-8">
-                  <div className="w-6 h-6 border-2 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-                  <p className="text-slate-600">Loading grades...</p>
-                </div>
-              ) : students.length === 0 ? (
-                <div className="text-center py-8">
-                  <p className="text-slate-600">No students found in this class.</p>
-                </div>
-              ) : (
-                <div className="overflow-x-auto" ref={tableRef}>
-                  <table className="w-full border-collapse">
-                    <thead>
-                      <tr className="bg-slate-100">
-                        <th className="px-4 py-3 text-left font-semibold text-slate-700 border border-slate-200">Student</th>
-                        <th className="px-4 py-3 text-center font-semibold text-slate-700 border border-slate-200">Roll No</th>
-                        {subjects.map(subject => (
-                          <th key={subject.id} className="px-4 py-3 text-center font-semibold text-slate-700 border border-slate-200">
-                            {subject.name}
-                          </th>
-                        ))}
-                        <th className="px-4 py-3 text-center font-semibold text-slate-700 border border-slate-200">Total</th>
-                        <th className="px-4 py-3 text-center font-semibold text-slate-700 border border-slate-200">Percentage</th>
-                        <th className="px-4 py-3 text-center font-semibold text-slate-700 border border-slate-200">Division</th>
-                        <th className="px-4 py-3 text-center font-semibold text-slate-700 border border-slate-200">Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {students
-                        .sort((a, b) => parseInt(a.roll_no || '0', 10) - parseInt(b.roll_no || '0', 10))
-                        .map((student) => {
-                          const studentResult = calculateStudentTotalAndGrade(student.id);
-                          
-                          return (
-                            <tr key={student.id} className="hover:bg-slate-50">
-                              <td className="px-4 py-3 border border-slate-200">
-                                <div>
-                                  <div className="font-medium text-slate-900">{student.first_name} {student.last_name}</div>
-                                  <div className="text-sm text-slate-600">{student.student_id}</div>
-                                </div>
-                              </td>
-                              <td className="px-4 py-3 text-center border border-slate-200">
-                                {student.roll_no || 'N/A'}
-                              </td>
-                              {subjects.map(subject => {
-                                const grade = getStudentGrade(student.id, subject.id);
-                                return (
-                                  <td key={subject.id} className="px-4 py-3 text-center border border-slate-200">
-                                    <span className={`font-semibold ${grade ? 'text-slate-900' : 'text-slate-400'}`}>
-                                      {grade || '-'}
-                                    </span>
-                                  </td>
-                                );
-                              })}
-                              <td className="px-4 py-3 text-center border border-slate-200">
-                                <span className={`font-semibold ${studentResult.total > 0 ? 'text-slate-900' : 'text-slate-400'}`}>
-                                  {studentResult.total > 0 ? studentResult.total : '-'}
-                                </span>
-                              </td>
-                              <td className="px-4 py-3 text-center border border-slate-200">
-                                <span className={`font-semibold ${studentResult.total > 0 ? 'text-slate-900' : 'text-slate-400'}`}>
-                                  {studentResult.total > 0 ? `${studentResult.percentage}%` : '-'}
-                                </span>
-                              </td>
-                              <td className="px-4 py-3 text-center border border-slate-200">
-                                {studentResult.total > 0 ? (
-                                  <span className={`px-2 py-1 rounded-full text-xs font-semibold ${
-                                    studentResult.grade === 'Distinction' ? 'bg-purple-100 text-purple-800' :
-                                    studentResult.grade === 'First Division' ? 'bg-green-100 text-green-800' :
-                                    studentResult.grade === 'Third Division' ? 'bg-yellow-100 text-yellow-800' :
-                                    'bg-red-100 text-red-800'
-                                  }`}>
-                                    {studentResult.grade}
-                                  </span>
-                                ) : (
-                                  <span className="text-slate-400 text-xs">Not graded</span>
-                                )}
-                              </td>
-                              <td className="px-4 py-3 text-center border border-slate-200">
-                                <div className="flex space-x-2">
-                                  <button
-                                    onClick={() => handlePrintStudent(student.id)}
-                                    className="px-2 py-1 bg-blue-600 text-white text-xs rounded hover:bg-blue-700 transition-colors"
-                                  >
-                                    Print
-                                  </button>
-                                  <button
-                                    onClick={() => handleDownloadStudentPDF(student.id)}
-                                    className="px-2 py-1 bg-pink-600 text-white text-xs rounded hover:bg-pink-700 transition-colors"
-                                  >
-                                    PDF
-                                  </button>
-                                </div>
-                              </td>
-                            </tr>
-                          );
-                        })}
-                    </tbody>
-                  </table>
-                  {students.map(student => (
-  <div
-    key={student.id}
-    ref={el => { studentRefs.current[student.id] = el; }}
-    style={{ display: 'none' }}
-  >
-    <div style={{ padding: 24, fontFamily: 'Arial, sans-serif', width: 600 }}>
-      <h2 style={{ textAlign: 'center', marginBottom: 16 }}>Student Result Sheet</h2>
-      <p><strong>Name:</strong> {student.first_name} {student.last_name}</p>
-      <p><strong>Student ID:</strong> {student.student_id}</p>
-      <p><strong>Roll No:</strong> {student.roll_no}</p>
-      <table style={{ width: '100%', borderCollapse: 'collapse', marginTop: 16 }}>
-        <thead>
-          <tr>
-            <th style={{ border: '1px solid #ccc', padding: 8 }}>Subject</th>
-            <th style={{ border: '1px solid #ccc', padding: 8 }}>Marks</th>
-          </tr>
-        </thead>
-        <tbody>
-          {subjects.map(subject => {
-            const grade = getStudentGrade(student.id, subject.id);
-            return (
-              <tr key={subject.id}>
-                <td style={{ border: '1px solid #ccc', padding: 8 }}>{subject.name}</td>
-                <td style={{ border: '1px solid #ccc', padding: 8 }}>{grade ?? '-'}</td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
-      <p style={{ marginTop: 16 }}>
-        <strong>Total:</strong> {calculateStudentTotalAndGrade(student.id).total}<br />
-        <strong>Percentage:</strong> {calculateStudentTotalAndGrade(student.id).percentage}%<br />
-        <strong>Division:</strong> {calculateStudentTotalAndGrade(student.id).grade}
-      </p>
-    </div>
-  </div>
-))}
-                </div>
-                
-              )}
+
+          {/* Student Grades Table */}
+          {selectedClass && (
+            <div className="sticky top-0 z-10">
+              <StudentGradesTable
+                isEditable={true}
+                userRole="teacher"
+                selectedClass={selectedClass}
+                selectedTerm={selectedTerm}
+                className={`${classes.find(c => c.id === selectedClass)?.name}${classes.find(c => c.id === selectedClass)?.section ? classes.find(c => c.id === selectedClass)?.section : ''}`}
+                showActions={true}
+                showCalculations={true}
+                onPreviewResults={handlePreviewClassResult}
+                onDownloadPDF={handleDownloadClassPDF}
+                showPreviewDownloadButtons={true}
+              />
             </div>
           )}
 
@@ -643,6 +542,128 @@ export default function TeacherDashboard() {
           {showPdfToast && (
             <div className="fixed bottom-4 right-4 bg-green-500 text-white px-6 py-3 rounded-lg shadow-lg z-50">
               PDF downloaded successfully!
+            </div>
+          )}
+
+          {/* Hidden Class Result Sheet for Preview/Download */}
+          {selectedClass && (
+            <div 
+              ref={classResultRef} 
+              className="hidden"
+              style={{ 
+                width: '210mm', 
+                minHeight: '297mm', 
+                padding: '20mm',
+                backgroundColor: 'white',
+                fontFamily: 'Arial, sans-serif'
+              }}
+            >
+              {/* Header */}
+              <div style={{ textAlign: 'center', marginBottom: '20px', borderBottom: '2px solid #333', paddingBottom: '10px' }}>
+                <h1 style={{ fontSize: '24px', fontWeight: 'bold', margin: '0', color: '#333' }}>
+                  Himalayan Children's Academy
+                </h1>
+                <p style={{ fontSize: '14px', margin: '5px 0', color: '#666' }}>
+                  Class Result Sheet - {selectedTerm.charAt(0).toUpperCase() + selectedTerm.slice(1)} Term
+                </p>
+                <p style={{ fontSize: '12px', margin: '5px 0', color: '#666' }}>
+                  {classes.find(c => c.id === selectedClass)?.name}{classes.find(c => c.id === selectedClass)?.section ? ` - ${classes.find(c => c.id === selectedClass)?.section}` : ''}
+                </p>
+              </div>
+
+              {/* Class Statistics */}
+              {classStats && (
+                <div style={{ marginBottom: '20px', display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '10px' }}>
+                  <div style={{ textAlign: 'center', padding: '10px', border: '1px solid #ddd', borderRadius: '5px' }}>
+                    <div style={{ fontSize: '18px', fontWeight: 'bold', color: '#2563eb' }}>{classStats.totalStudents}</div>
+                    <div style={{ fontSize: '12px', color: '#666' }}>Total Students</div>
+                  </div>
+                  <div style={{ textAlign: 'center', padding: '10px', border: '1px solid #ddd', borderRadius: '5px' }}>
+                    <div style={{ fontSize: '18px', fontWeight: 'bold', color: '#059669' }}>{classStats.gradedStudents}</div>
+                    <div style={{ fontSize: '12px', color: '#666' }}>Graded Students</div>
+                  </div>
+                  <div style={{ textAlign: 'center', padding: '10px', border: '1px solid #ddd', borderRadius: '5px' }}>
+                    <div style={{ fontSize: '18px', fontWeight: 'bold', color: '#7c3aed' }}>{classStats.averageMarks}</div>
+                    <div style={{ fontSize: '12px', color: '#666' }}>Average Marks</div>
+                  </div>
+                  <div style={{ textAlign: 'center', padding: '10px', border: '1px solid #ddd', borderRadius: '5px' }}>
+                    <div style={{ fontSize: '18px', fontWeight: 'bold', color: '#ea580c' }}>{classStats.passRate}%</div>
+                    <div style={{ fontSize: '12px', color: '#666' }}>Pass Rate</div>
+                  </div>
+                  <div style={{ textAlign: 'center', padding: '10px', border: '1px solid #ddd', borderRadius: '5px' }}>
+                    <div style={{ fontSize: '18px', fontWeight: 'bold', color: '#0d9488' }}>{classStats.completionRate}%</div>
+                    <div style={{ fontSize: '12px', color: '#666' }}>Completion Rate</div>
+                  </div>
+                </div>
+              )}
+
+              {/* Student Results Table */}
+              {students.length > 0 && (
+                <div style={{ marginBottom: '20px' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '10px' }}>
+                    <thead>
+                      <tr style={{ backgroundColor: '#f8fafc', borderBottom: '2px solid #333' }}>
+                        <th style={{ border: '1px solid #ddd', padding: '8px', textAlign: 'left', fontWeight: 'bold' }}>S.No</th>
+                        <th style={{ border: '1px solid #ddd', padding: '8px', textAlign: 'left', fontWeight: 'bold' }}>Student Name</th>
+                        <th style={{ border: '1px solid #ddd', padding: '8px', textAlign: 'center', fontWeight: 'bold' }}>Roll No</th>
+                        {subjects.map(subject => (
+                          <th key={subject.id} style={{ border: '1px solid #ddd', padding: '8px', textAlign: 'center', fontWeight: 'bold' }}>
+                            {subject.name}
+                          </th>
+                        ))}
+                        <th style={{ border: '1px solid #ddd', padding: '8px', textAlign: 'center', fontWeight: 'bold' }}>Total</th>
+                        <th style={{ border: '1px solid #ddd', padding: '8px', textAlign: 'center', fontWeight: 'bold' }}>Percentage</th>
+                        <th style={{ border: '1px solid #ddd', padding: '8px', textAlign: 'center', fontWeight: 'bold' }}>Division</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {students
+                        .sort((a, b) => parseInt(a.roll_no || '0', 10) - parseInt(b.roll_no || '0', 10))
+                        .map((student, index) => {
+                          const studentTotal = calculateStudentTotal(student.id);
+                          const studentPercentage = calculateStudentPercentage(student.id);
+                          const studentDivision = getStudentDivision(studentPercentage);
+                          
+                          return (
+                            <tr key={student.id} style={{ borderBottom: '1px solid #ddd' }}>
+                              <td style={{ border: '1px solid #ddd', padding: '6px', textAlign: 'center' }}>{index + 1}</td>
+                              <td style={{ border: '1px solid #ddd', padding: '6px' }}>
+                                <div style={{ fontWeight: 'bold' }}>{student.first_name} {student.last_name}</div>
+                                <div style={{ fontSize: '9px', color: '#666' }}>{student.student_id}</div>
+                              </td>
+                              <td style={{ border: '1px solid #ddd', padding: '6px', textAlign: 'center' }}>{student.roll_no || 'N/A'}</td>
+                              {subjects.map(subject => {
+                                const grade = getStudentGrade(student.id, subject.id);
+                                return (
+                                  <td key={subject.id} style={{ border: '1px solid #ddd', padding: '6px', textAlign: 'center' }}>
+                                    {grade || '-'}
+                                  </td>
+                                );
+                              })}
+                              <td style={{ border: '1px solid #ddd', padding: '6px', textAlign: 'center', fontWeight: 'bold' }}>{studentTotal}</td>
+                              <td style={{ border: '1px solid #ddd', padding: '6px', textAlign: 'center', fontWeight: 'bold' }}>{studentPercentage}%</td>
+                              <td style={{ border: '1px solid #ddd', padding: '6px', textAlign: 'center', fontWeight: 'bold' }}>{studentDivision}</td>
+                            </tr>
+                          );
+                        })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+
+              {/* Footer */}
+              <div style={{ marginTop: '30px', borderTop: '1px solid #ddd', paddingTop: '15px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', color: '#666' }}>
+                  <div>
+                    <p style={{ margin: '5px 0' }}>Generated on: {new Date().toLocaleDateString()}</p>
+                    <p style={{ margin: '5px 0' }}>Class Teacher: {user?.user_metadata?.first_name ? `${user?.user_metadata?.first_name} ${user?.user_metadata?.last_name}` : user?.email}</p>
+                  </div>
+                  <div style={{ textAlign: 'right' }}>
+                    <p style={{ margin: '5px 0' }}>Himalayan Children's Academy</p>
+                    <p style={{ margin: '5px 0' }}>Official Result Sheet</p>
+                  </div>
+                </div>
+              </div>
             </div>
           )}
         </div>

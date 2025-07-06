@@ -6,9 +6,9 @@ import { supabase } from "@/lib/supabaseClient";
 import jsPDF from "jspdf";
 import html2canvas from "html2canvas";
 import StudentResultSheet from "../../components/StudentResultSheet";
-import { useUser } from '@supabase/auth-helpers-react';
-import { useSession } from '@supabase/auth-helpers-react';
+import StudentGradesTable from "../../../components/StudentGradesTable";
 import type { User } from '@supabase/supabase-js';
+import React from "react";
 
 // SVG icons as functional components
 function TeacherIcon(props: React.SVGProps<SVGSVGElement>) {
@@ -210,6 +210,15 @@ export default function AdminDashboard() {
   const [modalLoading, setModalLoading] = useState(false);
   const [showUserPassword, setShowUserPassword] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [showClassResultModal, setShowClassResultModal] = useState(false);
+  const [selectedClassForResult, setSelectedClassForResult] = useState<any>(null);
+  const [classResultRef, setClassResultRef] = useState<HTMLDivElement | null>(null);
+  const [pdfLoading, setPdfLoading] = useState(false);
+  const [showPdfToast, setShowPdfToast] = useState(false);
+  const [classStudents, setClassStudents] = useState<any[]>([]);
+  const [classSubjectsForResult, setClassSubjectsForResult] = useState<any[]>([]);
+  const [classGrades, setClassGrades] = useState<any[]>([]);
+  const [classStatsForResult, setClassStatsForResult] = useState<any>(null);
 
    // Fetch classes from API on mount
   useEffect(() => {
@@ -330,6 +339,78 @@ export default function AdminDashboard() {
     };
     checkRole();
   }, [router]);
+
+  // Sort subjects in the order required for school result sheet
+  const sortSubjectsByOrder = (subjects: any[]) => {
+    const getPriority = (subjectName: string) => {
+      const name = subjectName.toLowerCase().trim();
+      
+      if (name.includes('tibetan') && name.includes('1')) return 0;
+      if (name.includes('tibetan') && name.includes('2')) return 1;
+      if (name.includes('english') || name.includes('englsih')) return 2;
+      if (name.includes('nepali')) return 3;
+      if (name.includes('science')) return 4;
+      if (name.includes('samajik')) return 5;
+      if (name.includes('mathematics') || name.includes('math')) return 6;
+      if (name.includes('computer')) return 7;
+      if (name.includes('health')) return 8;
+      if (name.includes('optional')) return 9;
+      if (name.includes('sero') && name.includes('fero')) return 10;
+      if (name.includes('social')) return 11;
+      
+      return 999;
+    };
+    
+    return subjects.sort((a, b) => {
+      const aPriority = getPriority(a.name);
+      const bPriority = getPriority(b.name);
+      return aPriority - bPriority;
+    });
+  };
+
+  // Fetch class data when selected for result modal
+  useEffect(() => {
+    if (!selectedClassForResult) {
+      setClassStudents([]);
+      setClassSubjectsForResult([]);
+      setClassGrades([]);
+      return;
+    }
+
+    // Fetch students for the selected class
+    fetch(`/api/students?class_id=${selectedClassForResult.id}`)
+      .then(res => res.json())
+      .then(data => {
+        setClassStudents(data || []);
+      })
+      .catch(err => {
+        console.error('Error fetching class students:', err);
+        setClassStudents([]);
+      });
+
+    // Fetch subjects for the selected class
+    fetch(`/api/class-subjects?class_id=${selectedClassForResult.id}`)
+      .then(res => res.json())
+      .then(data => {
+        const sortedSubjects = sortSubjectsByOrder(data || []);
+        setClassSubjectsForResult(sortedSubjects);
+      })
+      .catch(err => {
+        console.error('Error fetching class subjects:', err);
+        setClassSubjectsForResult([]);
+      });
+
+    // Fetch grades for the selected class
+    fetch(`/api/grades-new?class_id=${selectedClassForResult.id}&term=first`)
+      .then(res => res.json())
+      .then(data => {
+        setClassGrades(data.grades || []);
+      })
+      .catch(err => {
+        console.error('Error fetching class grades:', err);
+        setClassGrades([]);
+      });
+  }, [selectedClassForResult]);
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
@@ -752,21 +833,31 @@ export default function AdminDashboard() {
 
   // Fetch users when Users section is active
   useEffect(() => {
-    if (activeSection === 'users') {
-      setUsersLoading(true);
-      setUsersError("");
-      fetch("/api/admin-list-users")
-        .then(res => res.json())
-        .then(data => {
-          setUsers(data.users || []);
-          setUsersLoading(false);
-        })
-        .catch(() => {
-          setUsersError("Failed to fetch users.");
-          setUsersLoading(false);
-        });
+    if (activeSection !== 'users') {
+      return;
     }
+    
+    setUsersLoading(true);
+    setUsersError("");
+    fetch("/api/admin-list-users")
+      .then(res => res.json())
+      .then(data => {
+        setUsers(data.users || []);
+        setUsersLoading(false);
+      })
+      .catch(() => {
+        setUsersError("Failed to fetch users.");
+        setUsersLoading(false);
+      });
   }, [activeSection]);
+
+  // Calculate class stats when data changes
+  useEffect(() => {
+    if (classStudents.length > 0 && classGrades.length > 0) {
+      const stats = calculateClassStatsForResult();
+      setClassStatsForResult(stats);
+    }
+  }, [classStudents, classGrades]);
 
   // Now, after all hooks, you can have:
   if (loading) return <div>Loading...</div>;
@@ -798,7 +889,155 @@ export default function AdminDashboard() {
   console.log('Students:', students);
   console.log('Students by class:', studentsByClass);
 
- 
+  // Class result handlers for admin dashboard
+  const handlePreviewClassResult = () => {
+    const printContents = classResultRef?.innerHTML;
+    if (!printContents) return;
+    const previewWindow = window.open('', '_blank', 'height=800,width=800,scrollbars=yes,resizable=yes');
+    if (!previewWindow) return;
+    previewWindow.document.write('<html><head><title>Class Result Sheet Preview</title>');
+    previewWindow.document.write('<style>');
+    previewWindow.document.write('body { font-family: Arial, sans-serif; margin: 20px; background: #f5f5f5; }');
+    previewWindow.document.write('.result-sheet { background: white; padding: 30px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); margin: 0 auto; }');
+    previewWindow.document.write('@page { size: A4 landscape; margin: 10mm; }');
+    previewWindow.document.write('table { page-break-inside: auto; }');
+    previewWindow.document.write('tr { page-break-inside: avoid; page-break-after: auto; }');
+    previewWindow.document.write('thead { display: table-header-group; }');
+    previewWindow.document.write('tfoot { display: table-footer-group; }');
+    previewWindow.document.write('</style>');
+    previewWindow.document.write('</head><body>');
+    previewWindow.document.write('<div class="result-sheet">');
+    previewWindow.document.write(printContents);
+    previewWindow.document.write('</div>');
+    previewWindow.document.write('</body></html>');
+    previewWindow.document.close();
+  };
+
+  const handlePrintClassResult = () => {
+    const printContents = classResultRef?.innerHTML;
+    if (!printContents) return;
+    const printWindow = window.open('', '', 'height=800,width=800');
+    if (!printWindow) return;
+    printWindow.document.write('<html><head><title>Class Result Sheet</title>');
+    printWindow.document.write('<style>');
+    printWindow.document.write('body { font-family: Arial, sans-serif; margin: 20px; }');
+    printWindow.document.write('@page { size: A4 landscape; margin: 10mm; }');
+    printWindow.document.write('table { page-break-inside: auto; }');
+    printWindow.document.write('tr { page-break-inside: avoid; page-break-after: auto; }');
+    printWindow.document.write('thead { display: table-header-group; }');
+    printWindow.document.write('tfoot { display: table-footer-group; }');
+    printWindow.document.write('</style>');
+    printWindow.document.write('</head><body>');
+    printWindow.document.write(printContents);
+    printWindow.document.write('</body></html>');
+    printWindow.document.close();
+    printWindow.focus();
+    setTimeout(() => {
+      printWindow.print();
+      printWindow.close();
+    }, 500);
+  };
+
+  const handleDownloadClassPDF = async () => {
+    setPdfLoading(true);
+    const element = classResultRef;
+    if (!element) {
+      setPdfLoading(false);
+      return;
+    }
+    const canvas = await html2canvas(element);
+    const imgData = canvas.toDataURL("image/png");
+    const pdf = new jsPDF({ orientation: "landscape" });
+    const imgProps = pdf.getImageProperties(imgData);
+    const pdfWidth = pdf.internal.pageSize.getWidth();
+    const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
+    pdf.addImage(imgData, "PNG", 0, 0, pdfWidth, pdfHeight);
+    pdf.save(`class_result_${selectedClassForResult?.id}_first.pdf`);
+    setPdfLoading(false);
+    setShowPdfToast(true);
+    setTimeout(() => setShowPdfToast(false), 2000);
+  };
+
+  // Helper functions for class result calculations
+  const getStudentGrade = (studentId: string, subjectId: string) => {
+    const grade = classGrades.find(g => g.student_id === studentId && g.subject_id === subjectId && g.term === 'first');
+    return grade ? grade.marks : null;
+  };
+
+  const getStudentTheoryPractical = (studentId: string, subjectId: string) => {
+    const grade = classGrades.find(g => g.student_id === studentId && g.subject_id === subjectId && g.term === 'first');
+    if (!grade) return { theory: '', practical: '' };
+    
+    // For now, we'll split the total marks (this is a placeholder - in real implementation, 
+    // the database should store theory and practical separately)
+    const total = grade.marks;
+    // This is a temporary split - ideally the database should store theory/practical separately
+    const theory = Math.floor(total * 0.7).toString(); // 70% theory
+    const practical = (total - Math.floor(total * 0.7)).toString(); // 30% practical
+    
+    return { theory, practical };
+  };
+
+  const calculateStudentTotal = (studentId: string) => {
+    let total = 0;
+    classSubjectsForResult.forEach(subject => {
+      const grades = classGrades.find(g => g.student_id === studentId && g.subject_id === subject.id && g.term === 'first');
+      if (grades) {
+        total += grades.marks;
+      } else {
+        // Use existing grades if not edited
+        const existingGrade = getStudentGrade(studentId, subject.id);
+        total += existingGrade || 0;
+      }
+    });
+    return total;
+  };
+
+  const calculateStudentPercentage = (studentId: string) => {
+    const total = calculateStudentTotal(studentId);
+    const totalPossible = classSubjectsForResult.length * 100; // Assuming 100 marks per subject
+    return totalPossible > 0 ? Math.round((total / totalPossible) * 100) : 0;
+  };
+
+  const getStudentDivision = (percentage: number) => {
+    if (percentage >= 80) return 'First';
+    if (percentage >= 60) return 'Second';
+    if (percentage >= 40) return 'Third';
+    return 'Fail';
+  };
+
+  const calculateClassStatsForResult = () => {
+    if (classStudents.length === 0) return null;
+
+    let totalStudents = classStudents.length;
+    let gradedStudents = 0;
+    let totalMarks = 0;
+    let passedStudents = 0;
+
+    classStudents.forEach(student => {
+      const studentTotal = calculateStudentTotal(student.id);
+      if (studentTotal > 0) {
+        gradedStudents++;
+        totalMarks += studentTotal;
+        const studentPercentage = calculateStudentPercentage(student.id);
+        if (studentPercentage >= 40) {
+          passedStudents++;
+        }
+      }
+    });
+
+    const averageMarks = gradedStudents > 0 ? totalMarks / gradedStudents : 0;
+    const passRate = totalStudents > 0 ? (passedStudents / totalStudents) * 100 : 0;
+    const completionRate = totalStudents > 0 ? (gradedStudents / totalStudents) * 100 : 0;
+
+    return {
+      totalStudents,
+      gradedStudents,
+      averageMarks: averageMarks.toFixed(1),
+      passRate: passRate.toFixed(1),
+      completionRate: completionRate.toFixed(1)
+    };
+  };
 
   return (
     <div className="min-h-screen" style={{ backgroundColor: '#fffef2' }}>
@@ -1129,6 +1368,18 @@ export default function AdminDashboard() {
                               >
                                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                </svg>
+                              </button>
+                              <button
+                                onClick={() => {
+                                  setSelectedClassForResult(classItem);
+                                  setShowClassResultModal(true);
+                                }}
+                                className="text-green-600 hover:text-green-900 p-1 rounded hover:bg-green-50"
+                                title="View Result"
+                              >
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                                 </svg>
                               </button>
                               <button
@@ -2293,6 +2544,211 @@ export default function AdminDashboard() {
               />
             )}
           </div>
+        </div>
+      )}
+
+      {/* Class Result Modal */}
+      {showClassResultModal && selectedClassForResult && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-7xl w-full h-[90vh] p-6 relative">
+            <button
+              onClick={() => setShowClassResultModal(false)}
+              className="absolute top-4 right-4 text-neutral-400 hover:text-neutral-700 z-10"
+            >
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+            <div className="h-full flex flex-col">
+              <h2 className="text-2xl font-bold mb-6 text-center text-blue-700 flex-shrink-0">
+                Class Results - {selectedClassForResult.name}{selectedClassForResult.section ? ` - ${selectedClassForResult.section}` : ''}
+              </h2>
+              <div className="flex-1 overflow-auto">
+                <StudentGradesTable 
+                  selectedClass={selectedClassForResult.id.toString()}
+                  className={`${selectedClassForResult.name}${selectedClassForResult.section ? selectedClassForResult.section : ''}`}
+                  isEditable={true}
+                  userRole="admin"
+                  showActions={true}
+                  showCalculations={true}
+                  onPreviewResults={handlePreviewClassResult}
+                  onPrintResults={handlePrintClassResult}
+                  onDownloadPDF={handleDownloadClassPDF}
+                  showPreviewDownloadButtons={true}
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Hidden Class Result Sheet for Admin Preview/Download/Print */}
+      {selectedClassForResult && (
+        <div 
+          ref={(el) => setClassResultRef(el)}
+          className="hidden"
+          style={{ 
+            width: '210mm', 
+            minHeight: '297mm', 
+            padding: '20mm',
+            backgroundColor: 'white',
+            fontFamily: 'Arial, sans-serif'
+          }}
+        >
+          {/* Header */}
+          <div style={{ textAlign: 'center', marginBottom: '20px', borderBottom: '2px solid #333', paddingBottom: '10px' }}>
+            <h1 style={{ fontSize: '24px', fontWeight: 'bold', margin: '0', color: '#333' }}>
+              Himalayan Children's Academy
+            </h1>
+            <p style={{ fontSize: '14px', margin: '5px 0', color: '#666' }}>
+              Class Result Sheet - First Term
+            </p>
+            <p style={{ fontSize: '12px', margin: '5px 0', color: '#666' }}>
+              {selectedClassForResult.name}{selectedClassForResult.section ? ` - ${selectedClassForResult.section}` : ''}
+            </p>
+          </div>
+
+          {/* Class Statistics */}
+          {classStatsForResult && (
+            <div style={{ marginBottom: '20px', display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '10px' }}>
+              <div style={{ textAlign: 'center', padding: '10px', border: '1px solid #ddd', borderRadius: '5px' }}>
+                <div style={{ fontSize: '18px', fontWeight: 'bold', color: '#2563eb' }}>{classStatsForResult.totalStudents}</div>
+                <div style={{ fontSize: '12px', color: '#666' }}>Total Students</div>
+              </div>
+              <div style={{ textAlign: 'center', padding: '10px', border: '1px solid #ddd', borderRadius: '5px' }}>
+                <div style={{ fontSize: '18px', fontWeight: 'bold', color: '#059669' }}>{classStatsForResult.gradedStudents}</div>
+                <div style={{ fontSize: '12px', color: '#666' }}>Graded Students</div>
+              </div>
+              <div style={{ textAlign: 'center', padding: '10px', border: '1px solid #ddd', borderRadius: '5px' }}>
+                <div style={{ fontSize: '18px', fontWeight: 'bold', color: '#7c3aed' }}>{classStatsForResult.averageMarks}</div>
+                <div style={{ fontSize: '12px', color: '#666' }}>Average Marks</div>
+              </div>
+              <div style={{ textAlign: 'center', padding: '10px', border: '1px solid #ddd', borderRadius: '5px' }}>
+                <div style={{ fontSize: '18px', fontWeight: 'bold', color: '#ea580c' }}>{classStatsForResult.passRate}%</div>
+                <div style={{ fontSize: '12px', color: '#666' }}>Pass Rate</div>
+              </div>
+              <div style={{ textAlign: 'center', padding: '10px', border: '1px solid #ddd', borderRadius: '5px' }}>
+                <div style={{ fontSize: '18px', fontWeight: 'bold', color: '#0d9488' }}>{classStatsForResult.completionRate}%</div>
+                <div style={{ fontSize: '12px', color: '#666' }}>Completion Rate</div>
+              </div>
+            </div>
+          )}
+
+          {/* Student Results Table */}
+          {classStudents.length > 0 && (
+            <div style={{ marginBottom: '20px' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '10px' }}>
+                <thead>
+                  <tr style={{ backgroundColor: '#f8fafc', borderBottom: '2px solid #333' }}>
+                    <th style={{ border: '1px solid #ddd', padding: '8px', textAlign: 'left', fontWeight: 'bold' }}>S.No</th>
+                    <th style={{ border: '1px solid #ddd', padding: '8px', textAlign: 'left', fontWeight: 'bold' }}>Student Name</th>
+                    <th style={{ border: '1px solid #ddd', padding: '8px', textAlign: 'center', fontWeight: 'bold' }}>Roll No</th>
+                    {classSubjectsForResult.map(subject => (
+                      <th key={subject.id} style={{ border: '1px solid #ddd', padding: '8px', textAlign: 'center', fontWeight: 'bold' }}>
+                        {subject.name}
+                      </th>
+                    ))}
+                    <th style={{ border: '1px solid #ddd', padding: '8px', textAlign: 'center', fontWeight: 'bold' }}>Total</th>
+                    <th style={{ border: '1px solid #ddd', padding: '8px', textAlign: 'center', fontWeight: 'bold' }}>Percentage</th>
+                    <th style={{ border: '1px solid #ddd', padding: '8px', textAlign: 'center', fontWeight: 'bold' }}>Division</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {classStudents
+                    .sort((a, b) => parseInt(a.roll_no || '0', 10) - parseInt(b.roll_no || '0', 10))
+                    .map((student, index) => {
+                      const studentTotal = calculateStudentTotal(student.id);
+                      const studentPercentage = calculateStudentPercentage(student.id);
+                      const studentDivision = getStudentDivision(studentPercentage);
+                      
+                      return (
+                        <React.Fragment key={student.id}>
+                          {/* Student row with theory inputs */}
+                          <tr style={{ borderBottom: '1px solid #ddd' }}>
+                            <td style={{ border: '1px solid #ddd', padding: '6px', textAlign: 'center' }} rowSpan={2}>{index + 1}</td>
+                            <td style={{ border: '1px solid #ddd', padding: '6px' }} rowSpan={2}>
+                              <div style={{ fontWeight: 'bold' }}>{student.first_name} {student.last_name}</div>
+                              <div style={{ fontSize: '9px', color: '#666' }}>{student.student_id}</div>
+                            </td>
+                            <td style={{ border: '1px solid #ddd', padding: '6px', textAlign: 'center' }} rowSpan={2}>{student.roll_no || 'N/A'}</td>
+                            {classSubjectsForResult.map(subject => {
+                              const grades = getStudentTheoryPractical(student.id, subject.id);
+                              return (
+                                <td key={subject.id} style={{ border: '1px solid #ddd', padding: '6px', textAlign: 'center' }}>
+                                  {grades.theory || '-'}
+                                </td>
+                              );
+                            })}
+                            <td style={{ border: '1px solid #ddd', padding: '6px', textAlign: 'center', fontWeight: 'bold' }} rowSpan={2}>{studentTotal}</td>
+                            <td style={{ border: '1px solid #ddd', padding: '6px', textAlign: 'center', fontWeight: 'bold' }} rowSpan={2}>{studentPercentage}%</td>
+                            <td style={{ border: '1px solid #ddd', padding: '6px', textAlign: 'center', fontWeight: 'bold' }} rowSpan={2}>{studentDivision}</td>
+                          </tr>
+                          {/* Student row with practical inputs */}
+                          <tr style={{ borderBottom: '1px solid #ddd' }}>
+                            {classSubjectsForResult.map(subject => {
+                              const grades = getStudentTheoryPractical(student.id, subject.id);
+                              return (
+                                <td key={subject.id} style={{ border: '1px solid #ddd', padding: '6px', textAlign: 'center' }}>
+                                  {grades.practical || '-'}
+                                </td>
+                              );
+                            })}
+                          </tr>
+                          {/* Student total row */}
+                          <tr style={{ backgroundColor: '#e0f2fe', fontWeight: 'bold' }}>
+                            <td style={{ border: '1px solid #ddd', padding: '6px', textAlign: 'center', color: '#0277bd' }} colSpan={3}>
+                              Totals
+                            </td>
+                            {classSubjectsForResult.map(subject => {
+                              const grades = getStudentTheoryPractical(student.id, subject.id);
+                              const theoryValue = parseInt(grades.theory) || 0;
+                              const practicalValue = parseInt(grades.practical) || 0;
+                              const total = theoryValue + practicalValue;
+                              
+                              return (
+                                <td key={subject.id} style={{ border: '1px solid #ddd', padding: '6px', textAlign: 'center', color: '#0277bd', fontWeight: 'bold' }}>
+                                  {total}
+                                </td>
+                              );
+                            })}
+                            <td style={{ border: '1px solid #ddd', padding: '6px', textAlign: 'center', color: '#0277bd', fontWeight: 'bold' }}>
+                              {studentTotal}
+                            </td>
+                            <td style={{ border: '1px solid #ddd', padding: '6px', textAlign: 'center', color: '#0277bd', fontWeight: 'bold' }}>
+                              {studentPercentage}%
+                            </td>
+                            <td style={{ border: '1px solid #ddd', padding: '6px', textAlign: 'center', color: '#0277bd', fontWeight: 'bold' }}>
+                              {studentDivision}
+                            </td>
+                          </tr>
+                        </React.Fragment>
+                      );
+                    })}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          {/* Footer */}
+          <div style={{ marginTop: '30px', borderTop: '1px solid #ddd', paddingTop: '15px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', color: '#666' }}>
+              <div>
+                <p style={{ margin: '5px 0' }}>Generated on: {new Date().toLocaleDateString()}</p>
+                <p style={{ margin: '5px 0' }}>Admin: {user?.user_metadata?.first_name ? `${user?.user_metadata?.first_name} ${user?.user_metadata?.last_name}` : user?.email}</p>
+              </div>
+              <div style={{ textAlign: 'right' }}>
+                <p style={{ margin: '5px 0' }}>Himalayan Children's Academy</p>
+                <p style={{ margin: '5px 0' }}>Official Result Sheet</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* PDF Toast */}
+      {showPdfToast && (
+        <div className="fixed bottom-4 right-4 bg-green-500 text-white px-6 py-3 rounded-lg shadow-lg z-50">
+          PDF downloaded successfully!
         </div>
       )}
     </div>
